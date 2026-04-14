@@ -39,6 +39,9 @@ Phase 1 current behavior:
 - ingests rows via upsert (`ON CONFLICT`) using `libgen.incremental.primary_key_columns` (full scan; applies changes incrementally)
 - when `libgen.incremental.apply_deletes = true` and the PK is a single column, deletes rows not present in the new dump
 
+If `libgen.incremental.strategy = "row_hash"` and `libgen.incremental.row_hash.enabled = true`, update behaves like
+idempotent ingest (de-dupe by `_bm_row_hash`) rather than applying semantic updates.
+
 ### `bulk-merge libgen stats`
 
 Print counts and recent import run metadata:

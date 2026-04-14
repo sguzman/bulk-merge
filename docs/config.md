@@ -50,3 +50,11 @@ Environment overrides:
 - `execution.memory_hard_limit_bytes`: global memory guardrail for long-running ingestion steps.
 - `execution.batch.max_rows` / `execution.batch.max_bytes`: bounded buffering thresholds for batch writes.
 - `execution.loader.kind`: `copy|insert` (ingest path; update uses upsert).
+
+## LibGen incremental strategy
+
+- `libgen.incremental.strategy`: `primary_key|row_hash`
+- `libgen.incremental.primary_key_columns`: per-kind PK columns used for `ON CONFLICT` updates
+- `libgen.incremental.row_hash.enabled`: when enabled with `strategy="row_hash"`, adds `_bm_row_hash` to provisioned tables and de-dupes by row hash
+
+Note: `row_hash` provides idempotent ingestion/de-duplication, but it does not model “updates” unless the source provides stable keys.

@@ -75,7 +75,7 @@ vary across environments should be expressed here rather than hardcoded.
 
 - [x] `libgen.incremental.strategy` (primary-key vs row-hash).
 - [x] `libgen.incremental.primary_key_columns` (per dump kind).
-- [ ] `libgen.incremental.row_hash.enabled` and algorithm name.
+- [x] `libgen.incremental.row_hash.enabled` and algorithm name.
 - [x] `libgen.incremental.apply_deletes` (tombstones vs keep-old).
 
 ## LibGen Raw Landing

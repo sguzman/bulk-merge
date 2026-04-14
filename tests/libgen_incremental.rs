@@ -81,6 +81,7 @@ INSERT INTO `fiction` VALUES (1,'new'),(3,'hi');
         mode: IngestMode::Ingest,
         conflict_columns: vec!["ID".to_string()],
         apply_deletes: false,
+        row_hash_enabled: false,
     };
 
     ingest_dump_rows(&db, &cfg, &plan, ingest_run_id)
@@ -126,6 +127,7 @@ INSERT INTO `fiction` VALUES (1,'new'),(3,'hi');
         mode: IngestMode::Update,
         conflict_columns: vec!["ID".to_string()],
         apply_deletes: true,
+        row_hash_enabled: false,
     };
 
     // Update mode requires a unique constraint/index for ON CONFLICT.

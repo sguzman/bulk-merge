@@ -65,7 +65,12 @@ pub async fn provision_tables_from_dump(
     info!(tables = defs.len(), "provisioning postgres tables from mysql schema");
     for def in &defs {
         let pg_table = format!("{overall_prefix}{prefix}{}", def.name);
-        db.create_table_from_def(&config.postgres.schema_libgen, &pg_table, def)
+        db.create_table_from_def(
+            &config.postgres.schema_libgen,
+            &pg_table,
+            def,
+            config.libgen.incremental.strategy == "row_hash" && config.libgen.incremental.row_hash.enabled,
+        )
             .await
             .with_context(|| format!("failed creating table `{}`", pg_table))?;
     }

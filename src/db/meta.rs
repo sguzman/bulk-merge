@@ -176,12 +176,16 @@ where id = $1
         schema: &str,
         table: &str,
         def: &crate::libgen::mysql_dump::TableDef,
+        include_row_hash: bool,
     ) -> anyhow::Result<()> {
         let mut cols_sql: Vec<String> = Vec::with_capacity(def.columns.len());
         for col in &def.columns {
             let col_name = quote_ident(&col.name);
             let ty = map_mysql_type_to_postgres(&col.mysql_type);
             cols_sql.push(format!("{col_name} {ty}"));
+        }
+        if include_row_hash {
+            cols_sql.push(format!("{} text not null", quote_ident("_bm_row_hash")));
         }
 
         let schema_q = quote_ident(schema);
@@ -232,6 +236,64 @@ where id = $1
                 b.push_bind(val);
             }
         });
+
+        qb.build().execute(&self.pool).await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, rows = rows.len()))]
+    pub async fn insert_rows_text_on_conflict_do_nothing(
+        &self,
+        schema: &str,
+        table: &str,
+        columns: &[String],
+        conflict_columns: &[String],
+        rows: &[Vec<Option<String>>],
+    ) -> anyhow::Result<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        if conflict_columns.is_empty() {
+            anyhow::bail!("conflict_columns must not be empty");
+        }
+
+        let expected_cols = columns.len();
+        for r in rows {
+            if r.len() != expected_cols {
+                anyhow::bail!(
+                    "row length mismatch for insert: expected {expected_cols}, got {}",
+                    r.len()
+                );
+            }
+        }
+        for c in conflict_columns {
+            if !columns.iter().any(|x| x == c) {
+                anyhow::bail!("conflict column `{c}` not present in columns list");
+            }
+        }
+
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let conflict_sql = conflict_columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut qb = sqlx::QueryBuilder::new(format!(
+            "insert into {schema_q}.{table_q} ({cols_sql}) "
+        ));
+        qb.push_values(rows, |mut b, row| {
+            for val in row {
+                b.push_bind(val);
+            }
+        });
+        qb.push(format!(" on conflict ({conflict_sql}) do nothing"));
 
         qb.build().execute(&self.pool).await?;
         Ok(())

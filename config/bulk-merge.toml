@@ -74,6 +74,7 @@ checkpoint_granularity = "statement" # "statement" | "row"
 strategy = "primary_key" # "primary_key" | "row_hash"
 apply_deletes = false
 primary_key_columns = { fiction = ["ID"], compact = ["ID"] }
+row_hash = { enabled = false, algorithm = "sha256" }
 
 [libgen.raw]
 enabled = true

@@ -60,25 +60,34 @@ pub async fn register_run(
         LibgenDumpKind::Compact => config.libgen.incremental.primary_key_columns.compact.clone(),
     };
 
+    let row_hash_enabled =
+        config.libgen.incremental.strategy == "row_hash" && config.libgen.incremental.row_hash.enabled;
+
     let mode = match op {
         "update" => IngestMode::Update,
         _ => IngestMode::Ingest,
     };
 
-    if mode == IngestMode::Update {
-        if conflict_columns.is_empty() {
+    let conflict_columns = if mode == IngestMode::Update && row_hash_enabled {
+        vec!["_bm_row_hash".to_string()]
+    } else {
+        conflict_columns
+    };
+
+    // Ensure uniqueness so ON CONFLICT (update) or de-dupe (row_hash) is valid and fast.
+    if mode == IngestMode::Update || row_hash_enabled {
+        if mode == IngestMode::Update && conflict_columns.is_empty() {
             anyhow::bail!(
-                "libgen update requires libgen.incremental.primary_key_columns.{:?} to be set",
+                "libgen update requires either libgen.incremental.primary_key_columns.{:?} or row_hash enabled",
                 kind
             );
         }
-        // Ensure uniqueness so ON CONFLICT is valid and fast.
         for def in &defs {
             let pg_table = format!("{overall_prefix}{kind_prefix}{}", def.name);
-            if conflict_columns
+            let has_all = conflict_columns
                 .iter()
-                .all(|c| def.columns.iter().any(|col| col.name == *c))
-            {
+                .all(|c| def.columns.iter().any(|col| col.name == *c) || c == "_bm_row_hash");
+            if has_all {
                 db.ensure_unique_index(
                     &config.postgres.schema_libgen,
                     &pg_table,
@@ -98,7 +107,10 @@ pub async fn register_run(
         kind_prefix,
         mode,
         conflict_columns,
-        apply_deletes: config.libgen.incremental.apply_deletes && mode == IngestMode::Update,
+        apply_deletes: config.libgen.incremental.apply_deletes
+            && mode == IngestMode::Update
+            && !row_hash_enabled,
+        row_hash_enabled,
     };
 
     ingest_dump_rows(&db, config, &plan, run_id)

@@ -3,6 +3,7 @@ use crate::db::Db;
 use crate::libgen::mysql_dump::{parse_insert_into, seek_to_offset, StatementReader, TableDef, Value};
 use crate::progress::{ProgressConfig, ProgressTicker};
 use anyhow::Context as _;
+use sha2::{Digest as _, Sha256};
 use std::collections::HashMap;
 use std::time::Duration;
 use tracing::{info, instrument};
@@ -17,6 +18,7 @@ pub struct IngestPlan {
     pub mode: IngestMode,
     pub conflict_columns: Vec<String>,
     pub apply_deletes: bool,
+    pub row_hash_enabled: bool,
 }
 
 impl IngestPlan {
@@ -114,7 +116,10 @@ pub async fn ingest_dump_rows(
         };
 
         let pg_table = plan.pg_table_for_mysql(&insert.table);
-        let cols: Vec<String> = def.columns.iter().map(|c| c.name.clone()).collect();
+        let mut cols: Vec<String> = def.columns.iter().map(|c| c.name.clone()).collect();
+        if plan.row_hash_enabled {
+            cols.push("_bm_row_hash".to_string());
+        }
 
         let pk_col = if plan.mode == IngestMode::Update && plan.apply_deletes {
             // Phase 1 limitation: only support single-column PK for delete handling.
@@ -153,6 +158,23 @@ pub async fn ingest_dump_rows(
                 }
             }
 
+            if plan.row_hash_enabled {
+                let mut hasher = Sha256::new();
+                for (i, v) in out_row.iter().enumerate() {
+                    if i > 0 {
+                        hasher.update(b"\t");
+                    }
+                    match v {
+                        None => hasher.update(b"\\N"),
+                        Some(s) => hasher.update(s.as_bytes()),
+                    }
+                }
+                let hash = hasher.finalize();
+                let hex = hex::encode(hash);
+                chunk_bytes = chunk_bytes.saturating_add(hex.len());
+                out_row.push(Some(hex));
+            }
+
             if let Some(idx) = pk_index {
                 if let Some(Some(v)) = out_row.get(idx) {
                     pk_value_for_seen = Some(v.clone());
@@ -168,8 +190,19 @@ pub async fn ingest_dump_rows(
             {
                 match plan.mode {
                     IngestMode::Ingest => {
-                        match config.execution.loader.kind {
-                            crate::config::LoaderKind::Copy => {
+                        if plan.row_hash_enabled {
+                            db.insert_rows_text_on_conflict_do_nothing(
+                                &config.postgres.schema_libgen,
+                                &pg_table,
+                                &cols,
+                                &["_bm_row_hash".to_string()],
+                                &chunk,
+                            )
+                            .await
+                            .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                        } else {
+                            match config.execution.loader.kind {
+                                crate::config::LoaderKind::Copy => {
                                 db.copy_rows_text_tsv(
                                     &config.postgres.schema_libgen,
                                     &pg_table,
@@ -178,8 +211,8 @@ pub async fn ingest_dump_rows(
                                 )
                                 .await
                                 .with_context(|| format!("failed COPY into `{}`", pg_table))?;
-                            }
-                            crate::config::LoaderKind::Insert => {
+                                }
+                                crate::config::LoaderKind::Insert => {
                                 db.insert_rows_text(
                                     &config.postgres.schema_libgen,
                                     &pg_table,
@@ -188,19 +221,32 @@ pub async fn ingest_dump_rows(
                                 )
                                 .await
                                 .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                                }
                             }
                         }
                     }
                     IngestMode::Update => {
-                        db.upsert_rows_text(
-                            &config.postgres.schema_libgen,
-                            &pg_table,
-                            &cols,
-                            &plan.conflict_columns,
-                            &chunk,
-                        )
-                        .await
-                        .with_context(|| format!("failed upserting rows into `{}`", pg_table))?;
+                        if plan.row_hash_enabled {
+                            db.insert_rows_text_on_conflict_do_nothing(
+                                &config.postgres.schema_libgen,
+                                &pg_table,
+                                &cols,
+                                &plan.conflict_columns,
+                                &chunk,
+                            )
+                            .await
+                            .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                        } else {
+                            db.upsert_rows_text(
+                                &config.postgres.schema_libgen,
+                                &pg_table,
+                                &cols,
+                                &plan.conflict_columns,
+                                &chunk,
+                            )
+                            .await
+                            .with_context(|| format!("failed upserting rows into `{}`", pg_table))?;
+                        }
                     }
                 }
                 rows_loaded += chunk.len() as u64;
@@ -221,8 +267,19 @@ pub async fn ingest_dump_rows(
         if !chunk.is_empty() {
             match plan.mode {
                 IngestMode::Ingest => {
-                    match config.execution.loader.kind {
-                        crate::config::LoaderKind::Copy => {
+                    if plan.row_hash_enabled {
+                        db.insert_rows_text_on_conflict_do_nothing(
+                            &config.postgres.schema_libgen,
+                            &pg_table,
+                            &cols,
+                            &["_bm_row_hash".to_string()],
+                            &chunk,
+                        )
+                        .await
+                        .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                    } else {
+                        match config.execution.loader.kind {
+                            crate::config::LoaderKind::Copy => {
                             db.copy_rows_text_tsv(
                                 &config.postgres.schema_libgen,
                                 &pg_table,
@@ -231,8 +288,8 @@ pub async fn ingest_dump_rows(
                             )
                             .await
                             .with_context(|| format!("failed COPY into `{}`", pg_table))?;
-                        }
-                        crate::config::LoaderKind::Insert => {
+                            }
+                            crate::config::LoaderKind::Insert => {
                             db.insert_rows_text(
                                 &config.postgres.schema_libgen,
                                 &pg_table,
@@ -241,19 +298,32 @@ pub async fn ingest_dump_rows(
                             )
                             .await
                             .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                            }
                         }
                     }
                 }
                 IngestMode::Update => {
-                    db.upsert_rows_text(
-                        &config.postgres.schema_libgen,
-                        &pg_table,
-                        &cols,
-                        &plan.conflict_columns,
-                        &chunk,
-                    )
-                    .await
-                    .with_context(|| format!("failed upserting rows into `{}`", pg_table))?;
+                    if plan.row_hash_enabled {
+                        db.insert_rows_text_on_conflict_do_nothing(
+                            &config.postgres.schema_libgen,
+                            &pg_table,
+                            &cols,
+                            &plan.conflict_columns,
+                            &chunk,
+                        )
+                        .await
+                        .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                    } else {
+                        db.upsert_rows_text(
+                            &config.postgres.schema_libgen,
+                            &pg_table,
+                            &cols,
+                            &plan.conflict_columns,
+                            &chunk,
+                        )
+                        .await
+                        .with_context(|| format!("failed upserting rows into `{}`", pg_table))?;
+                    }
                 }
             }
             rows_loaded += chunk.len() as u64;

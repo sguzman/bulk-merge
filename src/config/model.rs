@@ -556,6 +556,8 @@ pub struct LibgenIncrementalConfig {
     pub apply_deletes: bool,
     #[serde(default)]
     pub primary_key_columns: LibgenPrimaryKeyColumns,
+    #[serde(default)]
+    pub row_hash: LibgenRowHashConfig,
 }
 
 impl Default for LibgenIncrementalConfig {
@@ -564,6 +566,7 @@ impl Default for LibgenIncrementalConfig {
             strategy: default_libgen_incremental_strategy(),
             apply_deletes: false,
             primary_key_columns: LibgenPrimaryKeyColumns::default(),
+            row_hash: LibgenRowHashConfig::default(),
         }
     }
 }
@@ -578,6 +581,27 @@ pub struct LibgenPrimaryKeyColumns {
     pub fiction: Vec<String>,
     #[serde(default)]
     pub compact: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LibgenRowHashConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_row_hash_algorithm")]
+    pub algorithm: String,
+}
+
+impl Default for LibgenRowHashConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            algorithm: default_row_hash_algorithm(),
+        }
+    }
+}
+
+fn default_row_hash_algorithm() -> String {
+    "sha256".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -68,8 +68,7 @@ Scope notes:
 
 ## Incremental Updates (Newer Dumps)
 
-- [ ] Define stable per-kind key strategy (config: primary key columns; fallback to row-hash).
-- [x] Define stable per-kind key strategy (config: primary key columns; fallback to row-hash).
+- [x] Define stable per-kind key strategy (config: primary key columns; optional row-hash de-dupe).
 - [x] `libgen update` imports a newer dump and applies changes incrementally (Phase 1: full scan + upsert by primary key).
 - [x] Persist incremental update state in `bm_meta` (`dataset_id`, last ingested version).
 - [x] Configurable delete handling (tombstones vs keep-old) (Phase 1: delete rows not seen in new dump when enabled and PK is single-column).
