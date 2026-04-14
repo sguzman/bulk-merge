@@ -48,6 +48,8 @@ framework.
 - [ ] Implement offline conversion path: dump → intermediate (TSV/CSV/JSONL) → Postgres `COPY`.
 - [ ] Implement streaming ingestion path: dump → batched Postgres load (client-side `COPY` preferred).
 - [ ] Implement per-dump-type schema isolation: dedicated tables for `fiction` and `compact` dumps.
+- [ ] Map MySQL fields 1-to-1 into Postgres columns (no semantic normalization in Phase 1).
+- [ ] Create indexes only after bulk loads finish (post-load indexing) to maximize ingest speed.
 - [ ] Implement resumable import with checkpoints and per-file accounting in `bm_meta`.
 - [ ] Implement `ingest libgen` command that accepts either dump type and provisions tables automatically.
 - [ ] Implement `update libgen` (incremental) command to ingest a newer dump and apply changes incrementally.
@@ -59,4 +61,3 @@ framework.
 - [ ] Add OpenAlex adapter crate and schema (`src_openalex`).
 - [ ] Add Crossref adapter crate and schema (`src_crossref`).
 - [ ] Add Wikidata adapter crate and schema (`src_wikidata`).
-

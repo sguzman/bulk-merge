@@ -29,6 +29,12 @@ vary across environments should be expressed here rather than hardcoded.
 - [ ] `postgres.pool.min_connections`.
 - [ ] `postgres.pool.acquire_timeout_ms`.
 
+## PostgreSQL Indexing Policy (Ingest Speed First)
+
+- [ ] `postgres.indexing.create_after_load` (bool; default true).
+- [ ] `postgres.indexing.concurrent` (bool; optional, for post-load index creation).
+- [ ] `postgres.indexing.main_fields` (per dump kind list of columns to index for quick search).
+
 ## Import Execution Policy
 
 - [ ] `execution.dry_run_default` (default false; overridable by CLI).
@@ -70,4 +76,3 @@ vary across environments should be expressed here rather than hardcoded.
 - [ ] `output.format` (`human` | `json`).
 - [ ] `output.color` (`auto` | `always` | `never`).
 - [ ] `output.report_path` (optional file output).
-

@@ -34,6 +34,7 @@ Scope notes:
 - [ ] Dedicated table naming strategy for `fiction` vs `compact` (configurable; never mixed).
 - [ ] Provision raw landing table(s) and the kind-specific table(s) on demand.
 - [ ] Store provenance on raw rows (`import_run_id`, file, line/offset, sha256).
+- [ ] Map LibGen table columns 1-to-1 from the MySQL dump into PostgreSQL columns (no semantic normalization yet).
 
 ## MySQL Dump Parser (Supported Subset)
 
@@ -48,12 +49,14 @@ Scope notes:
 - [ ] Convert MySQL dump → normalized intermediate format (choose one: TSV/CSV/JSONL; document choice).
 - [ ] Load intermediate into Postgres using `COPY` (fast path).
 - [ ] Resumability: checkpoints allow restarting without reprocessing completed regions.
+- [ ] Create indexes only after bulk insert finishes (post-load indexing) to maximize ingest speed.
 
 ## Streaming Ingestion Path (No Intermediate Files)
 
 - [ ] Parse dump and feed batched loads directly to Postgres (client-side COPY preferred).
 - [ ] Resumability: checkpoints allow resuming from last processed offset/line.
 - [ ] Backpressure and bounded memory (`max_rows`/`max_bytes`).
+- [ ] Create indexes only after streaming ingest finishes (post-load indexing) to maximize ingest speed.
 
 ## Incremental Updates (Newer Dumps)
 
@@ -62,4 +65,3 @@ Scope notes:
 - [ ] Persist incremental update state in `bm_meta` (`dataset_id`, last ingested version, checkpoints).
 - [ ] Configurable delete handling (tombstones vs keep-old).
 - [ ] Tests for incremental apply logic using two fixture dumps (v1 → v2).
-
