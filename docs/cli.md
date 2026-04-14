@@ -18,9 +18,19 @@ Creates base schemas and bookkeeping tables:
 
 ### `bulk-merge libgen ingest --kind <fiction|compact> --dump <path>`
 
-Registers an import run for a LibGen dump (Phase 1 ingestion to be implemented).
+Phase 1 current behavior:
+
+- registers an import run in `bm_meta.import_run`
+- scans the dump for `CREATE TABLE` statements and provisions dedicated PostgreSQL tables
+  under `src_libgen` using the configured per-kind prefixes
+
+Data loading (`INSERT` parsing + COPY) is not implemented yet.
 
 ### `bulk-merge libgen update --kind <fiction|compact> --dump <path>`
 
-Registers an update run for a newer LibGen dump (Phase 1 incrementals to be implemented).
+Phase 1 current behavior:
 
+- registers an import run in `bm_meta.import_run`
+- provisions tables from the dump schema (same as `ingest`)
+
+Incremental row-level updates are not implemented yet.

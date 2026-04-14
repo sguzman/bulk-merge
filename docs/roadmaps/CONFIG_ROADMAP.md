@@ -21,7 +21,7 @@ vary across environments should be expressed here rather than hardcoded.
 - [ ] `postgres.statement_timeout_ms`.
 - [x] `postgres.schema_meta` (default `bm_meta`).
 - [x] `postgres.schema_libgen` (default `src_libgen`).
-- [ ] `postgres.table_prefix` (optional naming policy for provisioned tables).
+- [x] `postgres.table_prefix` (optional naming policy for provisioned tables).
 
 ## PostgreSQL Pooling & Performance
 
@@ -48,15 +48,15 @@ vary across environments should be expressed here rather than hardcoded.
 ## LibGen Input & Parsing Policy
 
 - [x] `libgen.dump.kind` (`fiction` | `compact`).
-- [ ] `libgen.dump.path` (file path or directory policy).
-- [ ] `libgen.dump.dataset_id` (stable identifier for checkpointing/incrementals).
+- [x] `libgen.dump.path` (file path or directory policy).
+- [x] `libgen.dump.dataset_id` (stable identifier for checkpointing/incrementals).
 - [x] `libgen.dump.allow_invalid_utf8` policy.
 - [x] `libgen.dump.max_statement_bytes` (guardrail).
 
 ## LibGen Table Provisioning
 
-- [ ] `libgen.tables.fiction.name` (or naming template).
-- [ ] `libgen.tables.compact.name` (or naming template).
+- [x] `libgen.tables.fiction.name` (or naming template).
+- [x] `libgen.tables.compact.name` (or naming template).
 - [ ] `libgen.tables.raw.name` (raw landing table name/template).
 
 ## LibGen Resumability & Checkpointing

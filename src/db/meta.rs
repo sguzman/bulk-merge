@@ -109,5 +109,56 @@ where id = $1
 
         Ok(())
     }
+
+    #[instrument(skip_all, fields(schema = schema, table = table))]
+    pub async fn create_table_from_def(
+        &self,
+        schema: &str,
+        table: &str,
+        def: &crate::libgen::mysql_dump::TableDef,
+    ) -> anyhow::Result<()> {
+        let mut cols_sql: Vec<String> = Vec::with_capacity(def.columns.len());
+        for col in &def.columns {
+            let col_name = quote_ident(&col.name);
+            let ty = map_mysql_type_to_postgres(&col.mysql_type);
+            cols_sql.push(format!("{col_name} {ty}"));
+        }
+
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let sql = format!(
+            "create table if not exists {schema_q}.{table_q} (\n    {}\n)",
+            cols_sql.join(",\n    ")
+        );
+
+        sqlx::query(&sql).execute(&self.pool).await?;
+        Ok(())
+    }
 }
 
+fn quote_ident(ident: &str) -> String {
+    format!("\"{}\"", ident.replace('\"', "\"\""))
+}
+
+fn map_mysql_type_to_postgres(mysql: &str) -> &'static str {
+    let t = mysql.trim().to_ascii_lowercase();
+    let base = t.split('(').next().unwrap_or(&t);
+
+    match base {
+        "tinyint" => "smallint",
+        "smallint" => "smallint",
+        "mediumint" => "integer",
+        "int" | "integer" => "integer",
+        "bigint" => "bigint",
+        "float" => "real",
+        "double" => "double precision",
+        "decimal" | "numeric" => "numeric",
+        "char" | "varchar" => "text",
+        "tinytext" | "text" | "mediumtext" | "longtext" => "text",
+        "date" => "date",
+        "datetime" => "timestamp",
+        "timestamp" => "timestamp",
+        "blob" | "tinyblob" | "mediumblob" | "longblob" => "bytea",
+        _ => "text",
+    }
+}

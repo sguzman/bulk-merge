@@ -28,9 +28,9 @@ framework.
 ## Configuration (Control Pane)
 
 - [x] Add TOML config loading (the control pane).
-- [ ] Add config validation (fail-fast on invalid/missing settings with clear errors).
+- [x] Add config validation (fail-fast on invalid/missing settings with clear errors).
 - [x] Add `--config` flag (documented in `docs/cli.md`).
-- [ ] Add env override support (documented).
+- [x] Add basic env override support (documented).
 
 ## CLI Implementation
 

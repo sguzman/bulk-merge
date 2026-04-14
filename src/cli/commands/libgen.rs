@@ -1,6 +1,7 @@
 use crate::cli::Args;
 use crate::config::{AppConfig, LibgenDumpKind};
 use crate::db::{Db, ImportRunStatus};
+use crate::libgen::provision::provision_tables_from_dump;
 use anyhow::Context as _;
 use tracing::{info, instrument};
 
@@ -39,7 +40,13 @@ pub async fn register_run(
         .await
         .context("failed to create bm_meta.import_run")?;
 
-    info!(import_run_id = run_id, %op, "registered import run (data load not implemented yet)");
+    info!(import_run_id = run_id, %op, "registered import run");
+
+    // Phase 1 slice: discover schema and provision dedicated tables per dump kind.
+    let defs = provision_tables_from_dump(&db, config, kind, &dump)
+        .await
+        .context("failed to provision tables from dump schema")?;
+    info!(import_run_id = run_id, tables = defs.len(), "provisioned tables");
 
     db.finish_import_run(run_id, ImportRunStatus::Pending)
         .await
@@ -63,4 +70,3 @@ pub async fn sample_placeholder(config: &AppConfig, limit: u32) -> anyhow::Resul
     info!(limit, "not implemented yet (Phase 1: LibGen ingestion in progress)");
     Ok(())
 }
-

@@ -10,6 +10,8 @@ url = "postgresql://admin:admin@127.0.0.1:5432/data"
 # These schemas are created by `bulk-merge init-db`.
 schema_meta = "bm_meta"
 schema_libgen = "src_libgen"
+# Optional prefix applied to provisioned tables (in addition to per-kind prefixes).
+# table_prefix = "lg_"
 
 [postgres.pool]
 max_connections = 10
@@ -41,8 +43,14 @@ color = "auto"   # "auto" | "always" | "never"
 
 [libgen.dump]
 kind = "fiction" # "fiction" | "compact"
+path = ""
+dataset_id = ""
 allow_invalid_utf8 = false
 max_statement_bytes = 16_000_000
+
+[libgen.tables]
+fiction_prefix = "fiction_"
+compact_prefix = "compact_"
 
 [libgen.resume]
 enabled = true
@@ -55,4 +63,3 @@ apply_deletes = false
 [postgres.indexing]
 create_after_load = true
 concurrent = false
-

@@ -16,8 +16,74 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn load(path: &str) -> anyhow::Result<Self> {
         let contents = std::fs::read_to_string(path)?;
-        let config: Self = toml::from_str(&contents)?;
+        let mut config: Self = toml::from_str(&contents)?;
+        config.apply_env_overrides();
+        config.validate()?;
         Ok(config)
+    }
+
+    fn apply_env_overrides(&mut self) {
+        if let Ok(url) = std::env::var("BULK_MERGE_POSTGRES_URL") {
+            if !url.trim().is_empty() {
+                self.postgres.url = url;
+            }
+        }
+
+        if let Ok(level) = std::env::var("BULK_MERGE_LOG_LEVEL") {
+            if !level.trim().is_empty() {
+                self.logging.level = level;
+            }
+        }
+
+        if let Ok(format) = std::env::var("BULK_MERGE_LOG_FORMAT") {
+            match format.trim() {
+                "human" => self.logging.format = LogFormat::Human,
+                "json" => self.logging.format = LogFormat::Json,
+                _ => {}
+            }
+        }
+    }
+
+    pub fn validate(&self) -> anyhow::Result<()> {
+        let mut errors: Vec<String> = Vec::new();
+
+        if self.postgres.url.trim().is_empty() {
+            errors.push("postgres.url must not be empty".to_string());
+        }
+
+        if self.postgres.schema_meta.trim().is_empty() {
+            errors.push("postgres.schema_meta must not be empty".to_string());
+        }
+
+        if self.postgres.schema_libgen.trim().is_empty() {
+            errors.push("postgres.schema_libgen must not be empty".to_string());
+        }
+
+        if self.postgres.pool.max_connections == 0 {
+            errors.push("postgres.pool.max_connections must be > 0".to_string());
+        }
+
+        if self.execution.concurrency == 0 {
+            errors.push("execution.concurrency must be > 0".to_string());
+        }
+
+        if self.execution.batch.max_rows == 0 {
+            errors.push("execution.batch.max_rows must be > 0".to_string());
+        }
+
+        if self.execution.batch.max_bytes == 0 {
+            errors.push("execution.batch.max_bytes must be > 0".to_string());
+        }
+
+        if self.libgen.dump.max_statement_bytes == 0 {
+            errors.push("libgen.dump.max_statement_bytes must be > 0".to_string());
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("invalid config:\n- {}", errors.join("\n- ")))
+        }
     }
 }
 
@@ -28,6 +94,8 @@ pub struct PostgresConfig {
     pub schema_meta: String,
     #[serde(default = "default_schema_libgen")]
     pub schema_libgen: String,
+    #[serde(default)]
+    pub table_prefix: Option<String>,
     #[serde(default)]
     pub pool: PostgresPoolConfig,
     #[serde(default)]
@@ -234,6 +302,12 @@ pub enum OutputColor {
 pub struct LibgenConfig {
     #[serde(default)]
     pub dump: LibgenDumpConfig,
+    #[serde(default)]
+    pub tables: LibgenTablesConfig,
+    #[serde(default)]
+    pub resume: LibgenResumeConfig,
+    #[serde(default)]
+    pub incremental: LibgenIncrementalConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -244,6 +318,10 @@ pub struct LibgenDumpConfig {
     pub path: Option<String>,
     #[serde(default)]
     pub dataset_id: Option<String>,
+    #[serde(default = "default_libgen_max_statement_bytes")]
+    pub max_statement_bytes: u64,
+    #[serde(default)]
+    pub allow_invalid_utf8: bool,
 }
 
 impl Default for LibgenDumpConfig {
@@ -252,8 +330,81 @@ impl Default for LibgenDumpConfig {
             kind: None,
             path: None,
             dataset_id: None,
+            max_statement_bytes: default_libgen_max_statement_bytes(),
+            allow_invalid_utf8: false,
         }
     }
+}
+
+fn default_libgen_max_statement_bytes() -> u64 {
+    16_000_000
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LibgenTablesConfig {
+    #[serde(default = "default_libgen_fiction_prefix")]
+    pub fiction_prefix: String,
+    #[serde(default = "default_libgen_compact_prefix")]
+    pub compact_prefix: String,
+}
+
+impl Default for LibgenTablesConfig {
+    fn default() -> Self {
+        Self {
+            fiction_prefix: default_libgen_fiction_prefix(),
+            compact_prefix: default_libgen_compact_prefix(),
+        }
+    }
+}
+
+fn default_libgen_fiction_prefix() -> String {
+    "fiction_".to_string()
+}
+
+fn default_libgen_compact_prefix() -> String {
+    "compact_".to_string()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LibgenResumeConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_libgen_checkpoint_granularity")]
+    pub checkpoint_granularity: String,
+}
+
+impl Default for LibgenResumeConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            checkpoint_granularity: default_libgen_checkpoint_granularity(),
+        }
+    }
+}
+
+fn default_libgen_checkpoint_granularity() -> String {
+    "statement".to_string()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LibgenIncrementalConfig {
+    #[serde(default = "default_libgen_incremental_strategy")]
+    pub strategy: String,
+    #[serde(default)]
+    pub apply_deletes: bool,
+}
+
+impl Default for LibgenIncrementalConfig {
+    fn default() -> Self {
+        Self {
+            strategy: default_libgen_incremental_strategy(),
+            apply_deletes: false,
+        }
+    }
+}
+
+fn default_libgen_incremental_strategy() -> String {
+    "primary_key".to_string()
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -266,4 +417,3 @@ pub enum LibgenDumpKind {
 fn default_true() -> bool {
     true
 }
-

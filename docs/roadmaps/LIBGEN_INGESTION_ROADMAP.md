@@ -13,9 +13,11 @@ Scope notes:
 - [x] `bulk-merge init-db` provisions `bm_meta` and the `src_libgen` schema.
 - [ ] `bulk-merge init-db` provisions LibGen kind-specific tables (once schema discovery exists).
 - [x] `bulk-merge libgen ingest ...` registers an `import_run` (Phase 1 scaffolding).
-- [ ] `bulk-merge libgen ingest ...` ingests a dump into the dedicated tables.
+- [x] `bulk-merge libgen ingest ...` provisions dedicated tables from dump schema (`CREATE TABLE` discovery).
+- [ ] `bulk-merge libgen ingest ...` ingests row data into the dedicated tables.
 - [x] `bulk-merge libgen update ...` registers an `import_run` (Phase 1 scaffolding).
-- [ ] `bulk-merge libgen update ...` applies an incremental update from a newer dump.
+- [x] `bulk-merge libgen update ...` provisions tables from dump schema (`CREATE TABLE` discovery).
+- [ ] `bulk-merge libgen update ...` applies an incremental row-level update from a newer dump.
 - [x] `bulk-merge libgen stats` command exists (placeholder).
 - [ ] `bulk-merge libgen stats` prints real counts and last-run info.
 - [x] `bulk-merge libgen sample` command exists (placeholder).
@@ -28,7 +30,7 @@ Scope notes:
 - [x] TOML config includes Postgres connection details (credentials/host/db) and core tunables (pooling, batching, retries).
 - [ ] TOML config includes full schema/table naming policy for LibGen provisioned tables.
 - [x] TOML config includes LibGen dump kind and resumability/incremental strategy knobs (initial surface).
-- [ ] TOML config includes LibGen dump path and dataset_id as first-class settings.
+- [x] TOML config includes LibGen dump path and dataset_id as first-class settings.
 - [x] CLI can override high-value runtime knobs (log level/format, config path, dry-run).
 
 ## Import Bookkeeping (`bm_meta`)
@@ -39,18 +41,19 @@ Scope notes:
 
 ## Table Provisioning (Dedicated Tables per Kind)
 
-- [ ] Dedicated table naming strategy for `fiction` vs `compact` (configurable; never mixed).
-- [ ] Provision raw landing table(s) and the kind-specific table(s) on demand.
+- [x] Dedicated table naming strategy for `fiction` vs `compact` (configurable prefixes; never mixed).
+- [x] Provision kind-specific table(s) on demand from `CREATE TABLE` schema discovery.
+- [ ] Provision raw landing table(s) for provenance-preserving reprocessing.
 - [ ] Store provenance on raw rows (`import_run_id`, file, line/offset, sha256).
 - [ ] Map LibGen table columns 1-to-1 from the MySQL dump into PostgreSQL columns (no semantic normalization yet).
 
 ## MySQL Dump Parser (Supported Subset)
 
-- [ ] Parse `CREATE TABLE` to capture column order and rough types (ignore engine/charset noise).
+- [x] Parse `CREATE TABLE` to capture column order and rough types (ignore engine/charset noise).
 - [ ] Parse `INSERT INTO ... VALUES (...)` including multi-row inserts.
 - [ ] Correctly decode MySQL string escapes, NULL, numbers, and backtick identifiers.
 - [ ] Guardrails: maximum statement size, bounded buffering, explicit error reporting with context.
-- [ ] Parser unit tests with fixtures (escaping, multi-row inserts, odd quoting).
+- [x] Parser unit tests with fixtures (basic CREATE TABLE + comma splitting).
 
 ## Offline Conversion Path (Intermediate Artifact + COPY)
 

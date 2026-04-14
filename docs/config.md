@@ -10,6 +10,10 @@ Minimum required:
 
 - `postgres.url`: `postgresql://user:password@host:port/dbname`
 
+Environment overrides:
+
+- `BULK_MERGE_POSTGRES_URL`
+
 Schemas used by the project:
 
 - `postgres.schema_meta` (default `bm_meta`)
@@ -20,3 +24,7 @@ Schemas used by the project:
 - `logging.level`: `trace|debug|info|warn|error`
 - `logging.format`: `human|json`
 
+Environment overrides:
+
+- `BULK_MERGE_LOG_LEVEL`
+- `BULK_MERGE_LOG_FORMAT` (`human|json`)
