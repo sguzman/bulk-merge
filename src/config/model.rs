@@ -1,8 +1,59 @@
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct PathsConfig {
+    #[serde(default = "default_cache_dir")]
+    pub cache_dir: String,
+    #[serde(default = "default_cache_policy")]
+    pub cache_policy: CachePolicy,
+}
+
+impl Default for PathsConfig {
+    fn default() -> Self {
+        Self {
+            cache_dir: default_cache_dir(),
+            cache_policy: default_cache_policy(),
+        }
+    }
+}
+
+impl PathsConfig {
+    fn normalize(&mut self) {
+        if self.cache_dir.ends_with('/') {
+            while self.cache_dir.ends_with('/') {
+                self.cache_dir.pop();
+            }
+        }
+        if self.cache_dir.is_empty() {
+            self.cache_dir = default_cache_dir();
+        }
+    }
+}
+
+fn default_cache_dir() -> String {
+    ".cache/bulk-merge".to_string()
+}
+
+fn default_cache_policy() -> CachePolicy {
+    CachePolicy::Prefer
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CachePolicy {
+    /// Use cache dir defaults when a command doesn't specify output paths.
+    Always,
+    /// Prefer command/config specific paths, but fall back to cache dir defaults.
+    Prefer,
+    /// Require explicit output paths; never default into cache.
+    Never,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {
     pub postgres: PostgresConfig,
+    #[serde(default)]
+    pub paths: PathsConfig,
     #[serde(default)]
     pub logging: LoggingConfig,
     #[serde(default)]
@@ -76,6 +127,8 @@ impl AppConfig {
     }
 
     fn normalize(&mut self) {
+        self.paths.normalize();
+
         if let Some(timeout) = self.postgres.statement_timeout_ms {
             if timeout == 0 {
                 self.postgres.statement_timeout_ms = None;
@@ -96,6 +149,8 @@ impl AppConfig {
                 self.libgen.dump.dataset_id = None;
             }
         }
+
+        self.libgen.normalize(&self.paths);
     }
 
     pub fn validate(&self) -> anyhow::Result<()> {
@@ -149,6 +204,10 @@ impl AppConfig {
 
         if self.execution.copy.file_send_chunk_bytes == 0 {
             errors.push("execution.copy.file_send_chunk_bytes must be > 0".to_string());
+        }
+
+        if self.paths.cache_dir.trim().is_empty() {
+            errors.push("paths.cache_dir must not be empty".to_string());
         }
 
         if self.libgen.dump.max_statement_bytes == 0 {
@@ -534,22 +593,37 @@ pub struct LibgenConfig {
     pub raw: LibgenRawConfig,
 }
 
+impl LibgenConfig {
+    fn normalize(&mut self, paths: &PathsConfig) {
+        self.offline.normalize(paths);
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct LibgenOfflineConfig {
-    #[serde(default = "default_libgen_offline_out_dir")]
-    pub out_dir_default: String,
+    #[serde(default)]
+    pub out_dir_default: Option<String>,
 }
 
 impl Default for LibgenOfflineConfig {
     fn default() -> Self {
         Self {
-            out_dir_default: default_libgen_offline_out_dir(),
+            out_dir_default: None,
         }
     }
 }
 
-fn default_libgen_offline_out_dir() -> String {
-    ".cache/bulk-merge/libgen-offline".to_string()
+impl LibgenOfflineConfig {
+    fn normalize(&mut self, paths: &PathsConfig) {
+        if let Some(dir) = &self.out_dir_default {
+            if dir.trim().is_empty() {
+                self.out_dir_default = None;
+            }
+        }
+        if self.out_dir_default.is_none() && paths.cache_policy != CachePolicy::Never {
+            self.out_dir_default = Some(format!("{}/libgen-offline", paths.cache_dir));
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

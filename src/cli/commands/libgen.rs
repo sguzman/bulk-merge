@@ -358,7 +358,12 @@ pub async fn offline_convert(
     dump: String,
     out_dir: Option<String>,
 ) -> anyhow::Result<()> {
-    let out_dir = out_dir.unwrap_or_else(|| config.libgen.offline.out_dir_default.clone());
+    let out_dir = match out_dir.or_else(|| config.libgen.offline.out_dir_default.clone()) {
+        Some(v) => v,
+        None => anyhow::bail!(
+            "no offline output dir configured; set `libgen.offline.out_dir_default` or pass `--out-dir` (paths.cache_policy=never)"
+        ),
+    };
     if args.dry_run || config.execution.dry_run_default {
         info!(%out_dir, "dry-run: would convert dump to offline TSV");
         return Ok(());

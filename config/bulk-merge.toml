@@ -2,6 +2,11 @@
 #
 # Default values are set for the provided `tmp/docker-compose.yaml` Postgres instance.
 
+# Base directory for cacheable artifacts and temp outputs.
+[paths]
+cache_dir = ".cache/bulk-merge"
+cache_policy = "prefer" # "always" | "prefer" | "never"
+
 [postgres]
 # For the docker-compose in `tmp/docker-compose.yaml`, the port is published to the host,
 # so `127.0.0.1:5432` is correct when running the CLI on the host.
@@ -73,7 +78,8 @@ fiction_prefix = "fiction_"
 compact_prefix = "compact_"
 
 [libgen.offline]
-out_dir_default = ".cache/bulk-merge/libgen-offline"
+# If omitted, defaults to `${paths.cache_dir}/libgen-offline` unless `paths.cache_policy="never"`.
+# out_dir_default = ".cache/bulk-merge/libgen-offline"
 
 [libgen.resume]
 enabled = true

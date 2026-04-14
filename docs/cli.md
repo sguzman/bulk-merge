@@ -75,6 +75,7 @@ Offline conversion mode:
 - writes `manifest.json` (schema + table defs) and `state.json` (byte offset) for resumability
 - can be resumed by re-running the same command with the same `--out-dir`
 - default `--out-dir` is controlled by `libgen.offline.out_dir_default` (default: `.cache/bulk-merge/libgen-offline`)
+  - if `libgen.offline.out_dir_default` is omitted, it defaults to `${paths.cache_dir}/libgen-offline` unless `paths.cache_policy="never"`
 
 ### `bulk-merge libgen load --in-dir <dir>`
 

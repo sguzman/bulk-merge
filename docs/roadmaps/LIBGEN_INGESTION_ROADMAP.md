@@ -26,7 +26,7 @@ Scope notes:
 
 - [x] TOML config includes Postgres connection details (credentials/host/db) and core tunables (pooling, batching, retries).
 - [ ] TOML config includes full schema/table naming policy for LibGen provisioned tables.
-  - [ ] Configurable `paths.cache_dir` base for all intermediate artifacts and temp outputs.
+  - [x] Configurable `paths.cache_dir` base for all intermediate artifacts and temp outputs.
   - [ ] Configurable offline artifact layout under cache dir (per-kind subdir naming policy).
   - [ ] Configurable dataset naming policy for offline load (how `dataset_id` is chosen when absent).
 - [x] TOML config includes LibGen dump kind and resumability/incremental strategy knobs (initial surface).

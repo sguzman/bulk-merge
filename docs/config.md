@@ -4,6 +4,11 @@ All operational settings live in the TOML control pane (default: `config/bulk-me
 This includes PostgreSQL target information (credentials/host/db), schema/table naming
 policies, and ingest tuning knobs (batch sizes, concurrency, retries, etc.).
 
+## Paths & cache policy
+
+- `paths.cache_dir`: base directory for cacheable artifacts and temp outputs (default `./.cache/bulk-merge`).
+- `paths.cache_policy`: `always|prefer|never` controls whether commands default into `paths.cache_dir` when no explicit output path is provided.
+
 ## PostgreSQL
 
 Minimum required:
@@ -58,7 +63,8 @@ Environment overrides:
 
 ## LibGen offline mode (intermediate TSV)
 
-- `libgen.offline.out_dir_default`: default directory for `bulk-merge libgen convert` output (`manifest.json`, `state.json`, `*.tsv`). Default: `.cache/bulk-merge/libgen-offline`.
+- `libgen.offline.out_dir_default`: default directory for `bulk-merge libgen convert` output (`manifest.json`, `state.json`, `*.tsv`).
+  - If omitted, defaults to `${paths.cache_dir}/libgen-offline` unless `paths.cache_policy = "never"`.
 
 ## LibGen incremental strategy
 
