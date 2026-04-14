@@ -603,6 +603,51 @@ do update set
         Ok(())
     }
 
+    #[instrument(skip_all, fields(source_name = source_name, dataset_id = dataset_id, kind = kind))]
+    pub async fn get_dataset_state(
+        &self,
+        source_name: &str,
+        dataset_id: &str,
+        kind: &str,
+    ) -> anyhow::Result<Option<(Option<i64>, Option<String>)>> {
+        let rec: Option<(Option<i64>, Option<String>)> = sqlx::query_as(
+            r#"
+select last_succeeded_import_run_id, last_dataset_version
+from bm_meta.dataset_state
+where source_name = $1 and dataset_id = $2 and kind = $3
+"#,
+        )
+        .bind(source_name)
+        .bind(dataset_id)
+        .bind(kind)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(rec)
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, pk_column = pk_column, pk_value = %pk_value, target_column = target_column))]
+    pub async fn get_text_by_pk(
+        &self,
+        schema: &str,
+        table: &str,
+        pk_column: &str,
+        pk_value: &str,
+        target_column: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let pk_q = quote_ident(pk_column);
+        let target_q = quote_ident(target_column);
+        let sql = format!(
+            "select {target_q} from {schema_q}.{table_q} where {pk_q} = $1 limit 1"
+        );
+        let rec: Option<(Option<String>,)> = sqlx::query_as(&sql)
+            .bind(pk_value)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(rec.and_then(|r| r.0))
+    }
+
     #[instrument(skip_all, fields(import_run_id = import_run_id, table = table_name, pk_column = pk_column, values = values.len()))]
     pub async fn insert_seen_pk_values(
         &self,
