@@ -266,3 +266,4 @@ pub enum LibgenDumpKind {
 fn default_true() -> bool {
     true
 }
+

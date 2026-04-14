@@ -24,13 +24,10 @@ pub fn init_tracing(config: &AppConfig, args: &Args) -> anyhow::Result<()> {
         .with_line_number(config.logging.include_location);
 
     match format {
-        LogFormat::Human => {
-            builder.init();
-        }
-        LogFormat::Json => {
-            builder.json().init();
-        }
+        LogFormat::Human => builder.init(),
+        LogFormat::Json => builder.json().init(),
     }
 
     Ok(())
 }
+
