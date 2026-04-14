@@ -47,13 +47,13 @@ framework.
 
 ## LibGen Ingestion (Phase 1)
 
-- [ ] Implement LibGen SQL dump parser (MySQL dump subset: `CREATE TABLE`, `INSERT ... VALUES`, escaping, NULL/numbers).
+- [x] Implement LibGen SQL dump parser (MySQL dump subset: `CREATE TABLE`, `INSERT ... VALUES`, escaping, NULL/numbers).
 - [ ] Implement offline conversion path: dump → intermediate (TSV/CSV/JSONL) → Postgres `COPY`.
-- [ ] Implement streaming ingestion path: dump → batched Postgres load (client-side `COPY` preferred).
+- [x] Implement streaming ingestion path: dump → batched Postgres load (batched INSERT for now; COPY pending).
 - [ ] Implement per-dump-type schema isolation: dedicated tables for `fiction` and `compact` dumps.
-- [ ] Map MySQL fields 1-to-1 into Postgres columns (no semantic normalization in Phase 1).
+- [x] Map MySQL fields 1-to-1 into Postgres columns (Phase 1: store as `text`).
 - [ ] Create indexes only after bulk loads finish (post-load indexing) to maximize ingest speed.
-- [ ] Implement resumable import with checkpoints and per-file accounting in `bm_meta`.
+- [x] Implement resumable import with checkpoints (byte-offset) in `bm_meta.import_checkpoint`.
 - [ ] Implement `ingest libgen` command that accepts either dump type and provisions tables automatically.
 - [ ] Implement `update libgen` (incremental) command to ingest a newer dump and apply changes incrementally.
 - [ ] Implement verification/stats commands for LibGen ingestion (`stats`, `sample`, `validate`).

@@ -1,6 +1,6 @@
 use crate::config::{AppConfig, LibgenDumpKind};
 use crate::db::Db;
-use crate::libgen::mysql_dump::{parse_create_table, read_statements, table_prefix_for_kind, TableDef};
+use crate::libgen::mysql_dump::{parse_create_table, table_prefix_for_kind, StatementReader, TableDef};
 use anyhow::Context as _;
 use tracing::{info, instrument};
 
@@ -14,9 +14,8 @@ pub async fn provision_tables_from_dump(
     let file = std::fs::File::open(dump_path)
         .with_context(|| format!("failed to open dump file `{dump_path}`"))?;
 
-    info!("reading statements (create table discovery)");
-    let statements = read_statements(file, config.libgen.dump.max_statement_bytes)
-        .context("failed reading SQL statements from dump")?;
+    info!("scanning dump for CREATE TABLE statements");
+    let mut stmt_reader = StatementReader::new(file, config.libgen.dump.max_statement_bytes);
 
     let prefix = table_prefix_for_kind(
         kind,
@@ -26,8 +25,11 @@ pub async fn provision_tables_from_dump(
     let overall_prefix = config.postgres.table_prefix.as_deref().unwrap_or("");
 
     let mut defs: Vec<TableDef> = Vec::new();
-    for stmt in &statements {
-        if let Some(def) = parse_create_table(stmt).context("failed parsing CREATE TABLE")? {
+    while let Some(stmt) = stmt_reader
+        .next_statement()
+        .context("failed reading statement")?
+    {
+        if let Some(def) = parse_create_table(&stmt).context("failed parsing CREATE TABLE")? {
             defs.push(def);
         }
     }

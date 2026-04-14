@@ -135,6 +135,100 @@ where id = $1
         sqlx::query(&sql).execute(&self.pool).await?;
         Ok(())
     }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, rows = rows.len()))]
+    pub async fn insert_rows_text(
+        &self,
+        schema: &str,
+        table: &str,
+        columns: &[String],
+        rows: &[Vec<Option<String>>],
+    ) -> anyhow::Result<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let expected_cols = columns.len();
+        for r in rows {
+            if r.len() != expected_cols {
+                anyhow::bail!(
+                    "row length mismatch for insert: expected {expected_cols}, got {}",
+                    r.len()
+                );
+            }
+        }
+
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut qb = sqlx::QueryBuilder::new(format!(
+            "insert into {schema_q}.{table_q} ({cols_sql}) "
+        ));
+        qb.push_values(rows, |mut b, row| {
+            for val in row {
+                b.push_bind(val);
+            }
+        });
+
+        qb.build().execute(&self.pool).await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(import_run_id = import_run_id, key = %checkpoint_key))]
+    pub async fn set_checkpoint_offset(
+        &self,
+        import_run_id: i64,
+        checkpoint_key: &str,
+        offset: u64,
+    ) -> anyhow::Result<()> {
+        let value = serde_json::json!({ "offset": offset });
+        sqlx::query(
+            r#"
+insert into bm_meta.import_checkpoint (import_run_id, checkpoint_key, checkpoint_value)
+values ($1, $2, $3)
+on conflict (import_run_id, checkpoint_key)
+do update set checkpoint_value = excluded.checkpoint_value, updated_at = now()
+"#,
+        )
+        .bind(import_run_id)
+        .bind(checkpoint_key)
+        .bind(value)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(import_run_id = import_run_id, key = %checkpoint_key))]
+    pub async fn get_checkpoint_offset(
+        &self,
+        import_run_id: i64,
+        checkpoint_key: &str,
+    ) -> anyhow::Result<Option<u64>> {
+        let rec: Option<(serde_json::Value,)> = sqlx::query_as(
+            r#"
+select checkpoint_value
+from bm_meta.import_checkpoint
+where import_run_id = $1 and checkpoint_key = $2
+"#,
+        )
+        .bind(import_run_id)
+        .bind(checkpoint_key)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some((value,)) = rec else {
+            return Ok(None);
+        };
+        let offset = value
+            .get("offset")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        Ok(Some(offset))
+    }
 }
 
 fn quote_ident(ident: &str) -> String {
@@ -142,24 +236,8 @@ fn quote_ident(ident: &str) -> String {
 }
 
 fn map_mysql_type_to_postgres(mysql: &str) -> &'static str {
-    let t = mysql.trim().to_ascii_lowercase();
-    let base = t.split('(').next().unwrap_or(&t);
-
-    match base {
-        "tinyint" => "smallint",
-        "smallint" => "smallint",
-        "mediumint" => "integer",
-        "int" | "integer" => "integer",
-        "bigint" => "bigint",
-        "float" => "real",
-        "double" => "double precision",
-        "decimal" | "numeric" => "numeric",
-        "char" | "varchar" => "text",
-        "tinytext" | "text" | "mediumtext" | "longtext" => "text",
-        "date" => "date",
-        "datetime" => "timestamp",
-        "timestamp" => "timestamp",
-        "blob" | "tinyblob" | "mediumblob" | "longblob" => "bytea",
-        _ => "text",
-    }
+    // Phase 1 policy: map fields 1-to-1 and prioritize ingest robustness/speed.
+    // We store everything as text for now; later phases can add typed/normalized views.
+    let _ = mysql;
+    "text"
 }

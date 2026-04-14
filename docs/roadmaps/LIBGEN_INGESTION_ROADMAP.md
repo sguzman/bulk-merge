@@ -45,15 +45,15 @@ Scope notes:
 - [x] Provision kind-specific table(s) on demand from `CREATE TABLE` schema discovery.
 - [ ] Provision raw landing table(s) for provenance-preserving reprocessing.
 - [ ] Store provenance on raw rows (`import_run_id`, file, line/offset, sha256).
-- [ ] Map LibGen table columns 1-to-1 from the MySQL dump into PostgreSQL columns (no semantic normalization yet).
+- [x] Map LibGen table columns 1-to-1 from the MySQL dump into PostgreSQL columns (Phase 1: store as `text` for ingest robustness).
 
 ## MySQL Dump Parser (Supported Subset)
 
 - [x] Parse `CREATE TABLE` to capture column order and rough types (ignore engine/charset noise).
-- [ ] Parse `INSERT INTO ... VALUES (...)` including multi-row inserts.
-- [ ] Correctly decode MySQL string escapes, NULL, numbers, and backtick identifiers.
+- [x] Parse `INSERT INTO ... VALUES (...)` including multi-row inserts.
+- [x] Correctly decode MySQL string escapes, NULL, numbers, and backtick identifiers.
 - [ ] Guardrails: maximum statement size, bounded buffering, explicit error reporting with context.
-- [x] Parser unit tests with fixtures (basic CREATE TABLE + comma splitting).
+- [x] Parser unit tests with fixtures (CREATE TABLE + INSERT parsing basics).
 
 ## Offline Conversion Path (Intermediate Artifact + COPY)
 
@@ -64,8 +64,8 @@ Scope notes:
 
 ## Streaming Ingestion Path (No Intermediate Files)
 
-- [ ] Parse dump and feed batched loads directly to Postgres (client-side COPY preferred).
-- [ ] Resumability: checkpoints allow resuming from last processed offset/line.
+- [x] Parse dump and feed batched loads directly to Postgres (batched multi-row INSERT for now).
+- [x] Resumability: checkpoints allow resuming from last processed offset/line.
 - [ ] Backpressure and bounded memory (`max_rows`/`max_bytes`).
 - [ ] Create indexes only after streaming ingest finishes (post-load indexing) to maximize ingest speed.
 

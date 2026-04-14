@@ -23,8 +23,10 @@ Phase 1 current behavior:
 - registers an import run in `bm_meta.import_run`
 - scans the dump for `CREATE TABLE` statements and provisions dedicated PostgreSQL tables
   under `src_libgen` using the configured per-kind prefixes
+- parses `INSERT INTO ... VALUES` and bulk-inserts rows into the provisioned tables (Phase 1: all columns stored as `text`)
+- writes resumability checkpoints (byte offset) in `bm_meta.import_checkpoint` when enabled
 
-Data loading (`INSERT` parsing + COPY) is not implemented yet.
+COPY-based loading and post-load index creation are not implemented yet.
 
 ### `bulk-merge libgen update --kind <fiction|compact> --dump <path>`
 
@@ -32,5 +34,6 @@ Phase 1 current behavior:
 
 - registers an import run in `bm_meta.import_run`
 - provisions tables from the dump schema (same as `ingest`)
+- ingests rows the same way as `ingest` (incremental update logic is not implemented yet)
 
 Incremental row-level updates are not implemented yet.

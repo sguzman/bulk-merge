@@ -1,5 +1,5 @@
 use crate::config::LibgenDumpKind;
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColumnDef {
@@ -23,56 +23,100 @@ pub enum MySqlDumpError {
     Parse(String),
 }
 
-/// Read SQL statements from a MySQL dump stream.
-///
-/// This is a minimal statement splitter that attempts to honor single-quoted
-/// strings and backslash escapes when searching for `;`.
-pub fn read_statements<R: Read>(
-    mut reader: R,
+pub struct StatementReader<R> {
+    reader: BufReader<R>,
     max_statement_bytes: u64,
-) -> Result<Vec<String>, MySqlDumpError> {
-    let mut buf = String::new();
-    reader.read_to_string(&mut buf)?;
+    offset: u64,
+    buf: Vec<u8>,
+    in_single_quote: bool,
+    prev_was_backslash: bool,
+}
 
-    let mut statements: Vec<String> = Vec::new();
-    let mut cur = String::new();
-    let mut in_single_quote = false;
-    let mut prev_was_backslash = false;
-
-    for ch in buf.chars() {
-        cur.push(ch);
-
-        if in_single_quote {
-            if prev_was_backslash {
-                prev_was_backslash = false;
-                continue;
-            }
-            if ch == '\\' {
-                prev_was_backslash = true;
-                continue;
-            }
-            if ch == '\'' {
-                in_single_quote = false;
-            }
-        } else {
-            if ch == '\'' {
-                in_single_quote = true;
-            } else if ch == ';' {
-                if cur.len() as u64 > max_statement_bytes {
-                    return Err(MySqlDumpError::StatementTooLarge { max_bytes: max_statement_bytes });
-                }
-                statements.push(cur.trim().to_string());
-                cur.clear();
-            }
-        }
-
-        if cur.len() as u64 > max_statement_bytes {
-            // fail fast before unbounded growth
-            return Err(MySqlDumpError::StatementTooLarge { max_bytes: max_statement_bytes });
+impl<R: Read> StatementReader<R> {
+    pub fn new(inner: R, max_statement_bytes: u64) -> Self {
+        Self {
+            reader: BufReader::new(inner),
+            max_statement_bytes,
+            offset: 0,
+            buf: Vec::with_capacity(1024 * 64),
+            in_single_quote: false,
+            prev_was_backslash: false,
         }
     }
 
-    Ok(statements)
+    pub fn offset(&self) -> u64 {
+        self.offset
+    }
+
+    pub fn next_statement(&mut self) -> Result<Option<String>, MySqlDumpError> {
+        loop {
+            if self.buf.len() as u64 > self.max_statement_bytes {
+                return Err(MySqlDumpError::StatementTooLarge {
+                    max_bytes: self.max_statement_bytes,
+                });
+            }
+
+            if let Some(pos) = self.find_statement_terminator_pos() {
+                let stmt_bytes: Vec<u8> = self.buf.drain(..=pos).collect();
+                let stmt = String::from_utf8_lossy(&stmt_bytes).trim().to_string();
+                if stmt.is_empty() {
+                    continue;
+                }
+                return Ok(Some(stmt));
+            }
+
+            let available = self.reader.fill_buf()?;
+            if available.is_empty() {
+                if self.buf.is_empty() {
+                    return Ok(None);
+                }
+                let stmt = String::from_utf8_lossy(&self.buf).trim().to_string();
+                self.buf.clear();
+                if stmt.is_empty() {
+                    return Ok(None);
+                }
+                return Ok(Some(stmt));
+            }
+            self.buf.extend_from_slice(available);
+            let len = available.len();
+            self.reader.consume(len);
+            self.offset += len as u64;
+        }
+    }
+
+    fn find_statement_terminator_pos(&mut self) -> Option<usize> {
+        for (idx, &b) in self.buf.iter().enumerate() {
+            let ch = b as char;
+            if self.in_single_quote {
+                if self.prev_was_backslash {
+                    self.prev_was_backslash = false;
+                    continue;
+                }
+                if ch == '\\' {
+                    self.prev_was_backslash = true;
+                    continue;
+                }
+                if ch == '\'' {
+                    self.in_single_quote = false;
+                }
+                continue;
+            }
+
+            if ch == '\'' {
+                self.in_single_quote = true;
+                continue;
+            }
+            if ch == ';' {
+                return Some(idx);
+            }
+        }
+        None
+    }
+}
+
+pub fn seek_to_offset(file: &mut std::fs::File, offset: u64) -> Result<(), MySqlDumpError> {
+    file.seek(SeekFrom::Start(offset))?;
+    Ok(())
 }
 
 pub fn parse_create_table(stmt: &str) -> Result<Option<TableDef>, MySqlDumpError> {
@@ -95,6 +139,189 @@ pub fn parse_create_table(stmt: &str) -> Result<Option<TableDef>, MySqlDumpError
         name: table_name,
         columns: cols,
     }))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Value {
+    Null,
+    Text(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InsertStatement {
+    pub table: String,
+    pub rows: Vec<Vec<Value>>,
+}
+
+pub fn parse_insert_into(stmt: &str) -> Result<Option<InsertStatement>, MySqlDumpError> {
+    let trimmed = strip_leading_comments(stmt).trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    let upper = trimmed.to_ascii_uppercase();
+    if !upper.starts_with("INSERT INTO") {
+        return Ok(None);
+    }
+
+    // Expected minimal subset:
+    // INSERT INTO `table` VALUES (...),(...);
+    // We ignore any explicit column list for now.
+    let mut rest = trimmed.trim_start();
+    rest = rest[11..].trim_start(); // len("INSERT INTO") == 11
+    let (table, after_table) = parse_identifier(rest)
+        .ok_or_else(|| MySqlDumpError::Parse("failed to parse INSERT INTO table name".to_string()))?;
+
+    let upper_after = after_table.to_ascii_uppercase();
+    let values_pos = upper_after.find("VALUES").ok_or_else(|| {
+        MySqlDumpError::Parse("INSERT INTO without VALUES is not supported".to_string())
+    })?;
+    let mut after_values = after_table[values_pos + 6..].trim_start();
+
+    // Parse a comma-separated list of parenthesized rows.
+    let mut rows: Vec<Vec<Value>> = Vec::new();
+    while !after_values.is_empty() {
+        after_values = after_values.trim_start();
+        if after_values.starts_with(';') {
+            break;
+        }
+        if after_values.starts_with(',') {
+            after_values = after_values[1..].trim_start();
+            continue;
+        }
+        if !after_values.starts_with('(') {
+            break;
+        }
+
+        let (row, rest_row) = parse_row(after_values)?;
+        rows.push(row);
+        after_values = rest_row.trim_start();
+        if after_values.starts_with(';') {
+            break;
+        }
+    }
+
+    if rows.is_empty() {
+        return Err(MySqlDumpError::Parse(
+            "INSERT INTO parsed but yielded zero rows".to_string(),
+        ));
+    }
+
+    Ok(Some(InsertStatement { table, rows }))
+}
+
+fn parse_row(input: &str) -> Result<(Vec<Value>, &str), MySqlDumpError> {
+    let s = input.trim_start();
+    if !s.starts_with('(') {
+        return Err(MySqlDumpError::Parse("expected '('".to_string()));
+    }
+
+    let mut idx = 1usize;
+    let bytes = s.as_bytes();
+    let mut values: Vec<Value> = Vec::new();
+    loop {
+        idx = skip_ws(bytes, idx);
+        if idx >= bytes.len() {
+            return Err(MySqlDumpError::Parse("unterminated row".to_string()));
+        }
+        if bytes[idx] == b')' {
+            idx += 1;
+            break;
+        }
+
+        let (val, next) = parse_value(s, idx)?;
+        values.push(val);
+        idx = skip_ws(bytes, next);
+        if idx >= bytes.len() {
+            return Err(MySqlDumpError::Parse("unterminated row".to_string()));
+        }
+        if bytes[idx] == b',' {
+            idx += 1;
+            continue;
+        }
+        if bytes[idx] == b')' {
+            idx += 1;
+            break;
+        }
+        return Err(MySqlDumpError::Parse("unexpected token in row".to_string()));
+    }
+
+    Ok((values, &s[idx..]))
+}
+
+fn parse_value<'a>(s: &'a str, start: usize) -> Result<(Value, usize), MySqlDumpError> {
+    let bytes = s.as_bytes();
+    if start >= bytes.len() {
+        return Err(MySqlDumpError::Parse("unexpected end".to_string()));
+    }
+
+    match bytes[start] {
+        b'\'' => {
+            let mut out: Vec<u8> = Vec::new();
+            let mut i = start + 1;
+            while i < bytes.len() {
+                let b = bytes[i];
+                if b == b'\\' {
+                    if i + 1 >= bytes.len() {
+                        return Err(MySqlDumpError::Parse("dangling escape".to_string()));
+                    }
+                    let esc = bytes[i + 1];
+                    match esc {
+                        b'0' => out.push(0),
+                        b'b' => out.push(8),
+                        b'n' => out.push(b'\n'),
+                        b'r' => out.push(b'\r'),
+                        b't' => out.push(b'\t'),
+                        b'Z' => out.push(0x1a),
+                        b'\\' => out.push(b'\\'),
+                        b'\'' => out.push(b'\''),
+                        b'"' => out.push(b'"'),
+                        other => out.push(other),
+                    }
+                    i += 2;
+                    continue;
+                }
+                if b == b'\'' {
+                    let text = String::from_utf8_lossy(&out).to_string();
+                    return Ok((Value::Text(text), i + 1));
+                }
+                out.push(b);
+                i += 1;
+            }
+            Err(MySqlDumpError::Parse("unterminated string".to_string()))
+        }
+        b'N' | b'n' => {
+            let rem = &s[start..];
+            if rem.to_ascii_uppercase().starts_with("NULL") {
+                Ok((Value::Null, start + 4))
+            } else {
+                Ok((Value::Text(read_token(s, start)), start + read_token(s, start).len()))
+            }
+        }
+        _ => {
+            let tok = read_token(s, start);
+            Ok((Value::Text(tok.clone()), start + tok.len()))
+        }
+    }
+}
+
+fn read_token(s: &str, start: usize) -> String {
+    let bytes = s.as_bytes();
+    let mut end = start;
+    while end < bytes.len() {
+        let b = bytes[end];
+        if b == b',' || b == b')' || b.is_ascii_whitespace() {
+            break;
+        }
+        end += 1;
+    }
+    s[start..end].to_string()
+}
+
+fn skip_ws(bytes: &[u8], mut idx: usize) -> usize {
+    while idx < bytes.len() && bytes[idx].is_ascii_whitespace() {
+        idx += 1;
+    }
+    idx
 }
 
 fn strip_leading_comments(input: &str) -> &str {
@@ -340,5 +567,17 @@ CREATE TABLE `fiction` (
         let inside = "`a` int(11), `b` decimal(10,2), PRIMARY KEY (`a`,`b`), `c` text";
         let parts = split_top_level_commas(inside);
         assert_eq!(parts.len(), 4);
+    }
+
+    #[test]
+    fn parse_insert_into_basic() {
+        let stmt = "INSERT INTO `fiction` VALUES (1,'hi',NULL),(2,'a\\'b','x');";
+        let ins = parse_insert_into(stmt).unwrap().unwrap();
+        assert_eq!(ins.table, "fiction");
+        assert_eq!(ins.rows.len(), 2);
+        assert_eq!(ins.rows[0][0], Value::Text("1".to_string()));
+        assert_eq!(ins.rows[0][1], Value::Text("hi".to_string()));
+        assert_eq!(ins.rows[0][2], Value::Null);
+        assert_eq!(ins.rows[1][1], Value::Text("a'b".to_string()));
     }
 }

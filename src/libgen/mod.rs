@@ -4,4 +4,5 @@
 //! future parsing/ingestion logic out of `cli` and `db`.
 
 pub mod mysql_dump;
+pub mod ingest;
 pub mod provision;

@@ -1,6 +1,7 @@
 use crate::cli::Args;
 use crate::config::{AppConfig, LibgenDumpKind};
 use crate::db::{Db, ImportRunStatus};
+use crate::libgen::ingest::{ingest_dump_rows, IngestPlan};
 use crate::libgen::provision::provision_tables_from_dump;
 use anyhow::Context as _;
 use tracing::{info, instrument};
@@ -47,6 +48,23 @@ pub async fn register_run(
         .await
         .context("failed to provision tables from dump schema")?;
     info!(import_run_id = run_id, tables = defs.len(), "provisioned tables");
+
+    let kind_prefix = match kind {
+        LibgenDumpKind::Fiction => config.libgen.tables.fiction_prefix.clone(),
+        LibgenDumpKind::Compact => config.libgen.tables.compact_prefix.clone(),
+    };
+    let overall_prefix = config.postgres.table_prefix.clone().unwrap_or_default();
+    let plan = IngestPlan {
+        kind,
+        dump_path: dump.clone(),
+        table_defs: defs,
+        overall_prefix,
+        kind_prefix,
+    };
+
+    ingest_dump_rows(&db, config, &plan, run_id)
+        .await
+        .context("failed ingesting dump rows")?;
 
     db.finish_import_run(run_id, ImportRunStatus::Pending)
         .await
