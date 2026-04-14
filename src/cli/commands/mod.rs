@@ -43,8 +43,14 @@ pub async fn dispatch(args: Args, config: AppConfig) -> anyhow::Result<()> {
             )
             .await,
             LibgenCommand::Stats => libgen::placeholder(&config, "stats").await,
-            LibgenCommand::Sample { limit } => libgen::sample_placeholder(&config, limit).await,
-            LibgenCommand::Validate => libgen::placeholder(&config, "validate").await,
+            LibgenCommand::Sample {
+                kind,
+                mysql_table,
+                limit,
+            } => libgen::sample(&config, kind.into(), &mysql_table, limit).await,
+            LibgenCommand::Validate { kind, mysql_table } => {
+                libgen::validate(&config, kind.into(), &mysql_table).await
+            }
         },
     }
 }

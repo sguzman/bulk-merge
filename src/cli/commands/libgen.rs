@@ -44,7 +44,7 @@ pub async fn register_run(
     info!(import_run_id = run_id, %op, "registered import run");
 
     // Phase 1 slice: discover schema and provision dedicated tables per dump kind.
-    let defs = provision_tables_from_dump(&db, config, kind, &dump)
+    let defs = provision_tables_from_dump(&db, config, kind, &dump, run_id)
         .await
         .context("failed to provision tables from dump schema")?;
     info!(import_run_id = run_id, tables = defs.len(), "provisioned tables");
@@ -107,10 +107,58 @@ pub async fn placeholder(config: &AppConfig, op: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[instrument(skip_all, fields(limit = limit))]
-pub async fn sample_placeholder(config: &AppConfig, limit: u32) -> anyhow::Result<()> {
+#[instrument(skip_all, fields(kind = ?kind, mysql_table = %mysql_table, limit = limit))]
+pub async fn sample(
+    config: &AppConfig,
+    kind: LibgenDumpKind,
+    mysql_table: &str,
+    limit: u32,
+) -> anyhow::Result<()> {
     let db = Db::connect(config).await?;
     db.migrate().await?;
-    info!(limit, "not implemented yet (Phase 1: LibGen ingestion in progress)");
+
+    let kind_prefix = match kind {
+        LibgenDumpKind::Fiction => &config.libgen.tables.fiction_prefix,
+        LibgenDumpKind::Compact => &config.libgen.tables.compact_prefix,
+    };
+    let overall_prefix = config.postgres.table_prefix.as_deref().unwrap_or("");
+    let table = format!("{overall_prefix}{kind_prefix}{mysql_table}");
+
+    let rows = db
+        .sample_table(&config.postgres.schema_libgen, &table, limit)
+        .await
+        .with_context(|| format!("failed sampling `{}`", table))?;
+
+    if rows.is_empty() {
+        info!(table = %table, "no rows");
+        return Ok(());
+    }
+
+    // Phase 1: log sample row count; richer output formatting can follow.
+    info!(table = %table, rows = rows.len(), "sampled rows");
+    Ok(())
+}
+
+#[instrument(skip_all, fields(kind = ?kind, mysql_table = %mysql_table))]
+pub async fn validate(config: &AppConfig, kind: LibgenDumpKind, mysql_table: &str) -> anyhow::Result<()> {
+    let db = Db::connect(config).await?;
+    db.migrate().await?;
+
+    let kind_prefix = match kind {
+        LibgenDumpKind::Fiction => &config.libgen.tables.fiction_prefix,
+        LibgenDumpKind::Compact => &config.libgen.tables.compact_prefix,
+    };
+    let overall_prefix = config.postgres.table_prefix.as_deref().unwrap_or("");
+    let table = format!("{overall_prefix}{kind_prefix}{mysql_table}");
+
+    let count = db
+        .table_row_count(&config.postgres.schema_libgen, &table)
+        .await
+        .with_context(|| format!("failed counting `{}`", table))?;
+
+    if count == 0 {
+        anyhow::bail!("validation failed: `{}` has 0 rows", table);
+    }
+    info!(table = %table, rows = count, "validation ok");
     Ok(())
 }

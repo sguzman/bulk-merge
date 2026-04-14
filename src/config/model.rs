@@ -429,6 +429,8 @@ pub struct LibgenConfig {
     pub resume: LibgenResumeConfig,
     #[serde(default)]
     pub incremental: LibgenIncrementalConfig,
+    #[serde(default)]
+    pub raw: LibgenRawConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -526,6 +528,23 @@ impl Default for LibgenIncrementalConfig {
 
 fn default_libgen_incremental_strategy() -> String {
     "primary_key".to_string()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LibgenRawConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_true")]
+    pub store_other_statements: bool,
+}
+
+impl Default for LibgenRawConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            store_other_statements: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]

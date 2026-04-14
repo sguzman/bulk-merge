@@ -38,3 +38,20 @@ Phase 1 current behavior:
 - ingests rows the same way as `ingest` (incremental update logic is not implemented yet)
 
 Incremental row-level updates are not implemented yet.
+
+### `bulk-merge libgen sample --kind <fiction|compact> --mysql-table <name> [--limit <n>]`
+
+Sample rows from an ingested table.
+
+Notes:
+
+- `--kind` selects the configured table prefix.
+- `--mysql-table` is the original MySQL table name (without prefixes).
+
+### `bulk-merge libgen validate --kind <fiction|compact> --mysql-table <name>`
+
+Validate minimal invariants.
+
+Current checks:
+
+- row count of the resolved table is > 0

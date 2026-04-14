@@ -76,6 +76,11 @@ vary across environments should be expressed here rather than hardcoded.
 - [ ] `libgen.incremental.row_hash.enabled` and algorithm name.
 - [x] `libgen.incremental.apply_deletes` (tombstones vs keep-old).
 
+## LibGen Raw Landing
+
+- [x] `libgen.raw.enabled` (store raw statements for replay).
+- [x] `libgen.raw.store_other_statements` (store non-INSERT/non-CREATE statements).
+
 ## Output & Reporting
 
 - [x] `output.format` (`human` | `json`).

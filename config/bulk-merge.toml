@@ -70,6 +70,10 @@ checkpoint_granularity = "statement" # "statement" | "row"
 strategy = "primary_key" # "primary_key" | "row_hash"
 apply_deletes = false
 
+[libgen.raw]
+enabled = true
+store_other_statements = true
+
 [postgres.indexing]
 create_after_load = true
 concurrent = false

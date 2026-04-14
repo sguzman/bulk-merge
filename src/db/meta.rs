@@ -1,5 +1,6 @@
 use crate::config::{AppConfig, LibgenDumpKind};
 use anyhow::Context as _;
+use sha2::{Digest as _, Sha256};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::time::Duration;
 use tracing::{info, instrument};
@@ -338,6 +339,83 @@ where c.relkind = 'i' and n.nspname = $1 and c.relname = $2
         .fetch_optional(&self.pool)
         .await?;
         Ok(rec.is_some())
+    }
+
+    #[instrument(skip_all, fields(import_run_id = import_run_id, offset_end = byte_offset_end, kind = stmt_kind, table = mysql_table))]
+    pub async fn insert_libgen_raw_statement(
+        &self,
+        import_run_id: i64,
+        byte_offset_end: i64,
+        stmt_kind: &str,
+        mysql_table: Option<&str>,
+        payload: &str,
+    ) -> anyhow::Result<()> {
+        let mut hasher = Sha256::new();
+        hasher.update(payload.as_bytes());
+        let hash = hasher.finalize().to_vec();
+
+        sqlx::query(
+            r#"
+insert into src_libgen.raw_statement (import_run_id, byte_offset_end, stmt_kind, mysql_table, sha256, payload)
+values ($1, $2, $3, $4, $5, $6)
+on conflict (import_run_id, byte_offset_end) do nothing
+"#,
+        )
+        .bind(import_run_id)
+        .bind(byte_offset_end)
+        .bind(stmt_kind)
+        .bind(mysql_table)
+        .bind(hash)
+        .bind(payload)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    pub async fn list_tables_with_prefix(
+        &self,
+        schema: &str,
+        prefix: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        let recs: Vec<(String,)> = sqlx::query_as(
+            r#"
+select table_name
+from information_schema.tables
+where table_schema = $1 and table_type = 'BASE TABLE' and table_name like $2
+order by table_name
+"#,
+        )
+        .bind(schema)
+        .bind(format!("{prefix}%"))
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(recs.into_iter().map(|r| r.0).collect())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table))]
+    pub async fn table_row_count(&self, schema: &str, table: &str) -> anyhow::Result<i64> {
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let sql = format!("select count(*)::bigint from {schema_q}.{table_q}");
+        let rec: (i64,) = sqlx::query_as(&sql).fetch_one(&self.pool).await?;
+        Ok(rec.0)
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, limit = limit))]
+    pub async fn sample_table(
+        &self,
+        schema: &str,
+        table: &str,
+        limit: u32,
+    ) -> anyhow::Result<Vec<serde_json::Value>> {
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let sql = format!(
+            "select row_to_json(t) from (select * from {schema_q}.{table_q} limit {limit}) t"
+        );
+        let recs: Vec<(serde_json::Value,)> = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
+        Ok(recs.into_iter().map(|r| r.0).collect())
     }
 }
 

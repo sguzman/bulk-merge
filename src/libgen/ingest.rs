@@ -77,8 +77,25 @@ pub async fn ingest_dump_rows(
         });
 
         let Some(insert) = parse_insert_into(&stmt).context("failed parsing INSERT INTO")? else {
+            if config.libgen.raw.enabled && config.libgen.raw.store_other_statements {
+                db.insert_libgen_raw_statement(import_run_id, current_offset as i64, "other", None, &stmt)
+                    .await
+                    .context("failed inserting raw_statement")?;
+            }
             continue;
         };
+
+        if config.libgen.raw.enabled {
+            db.insert_libgen_raw_statement(
+                import_run_id,
+                current_offset as i64,
+                "insert_into",
+                Some(&insert.table),
+                &stmt,
+            )
+            .await
+            .context("failed inserting raw_statement")?;
+        }
         rows_seen += insert.rows.len() as u64;
 
         let Some(def) = table_map.get(&insert.table) else {

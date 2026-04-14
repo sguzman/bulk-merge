@@ -12,6 +12,7 @@ pub async fn provision_tables_from_dump(
     config: &AppConfig,
     kind: LibgenDumpKind,
     dump_path: &str,
+    import_run_id: i64,
 ) -> anyhow::Result<Vec<TableDef>> {
     let file = std::fs::File::open(dump_path)
         .with_context(|| format!("failed to open dump file `{dump_path}`"))?;
@@ -38,7 +39,22 @@ pub async fn provision_tables_from_dump(
         let current_offset = stmt_reader.offset();
         ticker.maybe_log("libgen_provision_scan", current_offset, size_bytes, || {});
         if let Some(def) = parse_create_table(&stmt).context("failed parsing CREATE TABLE")? {
+            if config.libgen.raw.enabled {
+                db.insert_libgen_raw_statement(
+                    import_run_id,
+                    current_offset as i64,
+                    "create_table",
+                    Some(&def.name),
+                    &stmt,
+                )
+                .await
+                .context("failed inserting raw_statement")?;
+            }
             defs.push(def);
+        } else if config.libgen.raw.enabled && config.libgen.raw.store_other_statements {
+            db.insert_libgen_raw_statement(import_run_id, current_offset as i64, "other", None, &stmt)
+                .await
+                .context("failed inserting raw_statement")?;
         }
     }
 

@@ -20,10 +20,8 @@ Scope notes:
 - [ ] `bulk-merge libgen update ...` applies an incremental row-level update from a newer dump.
 - [x] `bulk-merge libgen stats` command exists (placeholder).
 - [ ] `bulk-merge libgen stats` prints real counts and last-run info.
-- [x] `bulk-merge libgen sample` command exists (placeholder).
-- [ ] `bulk-merge libgen sample` prints a small sample of rows (human/json).
-- [x] `bulk-merge libgen validate` command exists (placeholder).
-- [ ] `bulk-merge libgen validate` runs minimal invariants and reports failures.
+- [x] `bulk-merge libgen sample` prints a small sample of rows (Phase 1: JSON via `row_to_json`).
+- [x] `bulk-merge libgen validate` runs minimal invariants and reports failures (Phase 1: row count > 0).
 
 ## Configuration & Policies (Control Pane)
 
@@ -43,8 +41,8 @@ Scope notes:
 
 - [x] Dedicated table naming strategy for `fiction` vs `compact` (configurable prefixes; never mixed).
 - [x] Provision kind-specific table(s) on demand from `CREATE TABLE` schema discovery.
-- [ ] Provision raw landing table(s) for provenance-preserving reprocessing.
-- [ ] Store provenance on raw rows (`import_run_id`, file, line/offset, sha256).
+- [x] Provision raw landing table(s) for provenance-preserving reprocessing (`src_libgen.raw_statement`).
+- [x] Store provenance for raw statements (`import_run_id`, byte offset, sha256, kind, mysql_table).
 - [x] Map LibGen table columns 1-to-1 from the MySQL dump into PostgreSQL columns (Phase 1: store as `text` for ingest robustness).
 
 ## MySQL Dump Parser (Supported Subset)

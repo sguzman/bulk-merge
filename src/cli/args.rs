@@ -64,11 +64,22 @@ pub enum LibgenCommand {
     Stats,
     /// Print a small sample of rows (placeholder until ingestion exists)
     Sample {
+        /// Dump kind to use for table prefix lookup
+        #[arg(long)]
+        kind: LibgenDumpKindArg,
+        /// MySQL table name (without prefixes), e.g. `fiction` or `libgen_compact`
+        #[arg(long)]
+        mysql_table: String,
         #[arg(long, default_value_t = 10)]
         limit: u32,
     },
     /// Validate minimal invariants (placeholder until ingestion exists)
-    Validate,
+    Validate {
+        #[arg(long)]
+        kind: LibgenDumpKindArg,
+        #[arg(long)]
+        mysql_table: String,
+    },
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy)]
@@ -76,4 +87,3 @@ pub enum LibgenDumpKindArg {
     Fiction,
     Compact,
 }
-
