@@ -7,21 +7,42 @@ Phase 1 is LibGen-only ingestion (no cross-source merging). Future phases add
 other sources (Open Library, OpenAlex, Crossref, Wikidata) using the same import
 framework.
 
-## Tranche 0 — LibGen-First Ingestion Foundations
+## Project Definition
 
 - [ ] Document project goal/non-goals and Phase 1 scope in `README.md`.
+
+## CLI Surface
+
 - [ ] Define CLI surface for LibGen ingestion in `docs/cli.md` (commands, args, exit codes).
+
+## Crate Structure
+
 - [ ] Establish crate layout (`lib.rs` + `main.rs`) and module boundaries for adapters/backends.
+
+## Logging & Error Handling
+
 - [ ] Add structured logging via `tracing` + `tracing-subscriber` (configurable via TOML and CLI).
 - [ ] Add error strategy (`thiserror` for domain, `anyhow` at CLI boundaries with context).
+
+## Configuration (Control Pane)
+
 - [ ] Add TOML config loading + validated config model (the control pane).
 - [ ] Add `--config` flag and env override support (documented).
+
+## CLI Implementation
+
 - [ ] Add `clap`-based CLI parsing with help/version output.
 - [ ] Add `--dry-run` support for all mutating commands.
+
+## Database Foundations
+
 - [ ] Add Postgres connection + migrations for `bm_meta` import bookkeeping.
+
+## Testing
+
 - [ ] Add baseline unit tests for config parsing/validation and CLI argument parsing.
 
-## Tranche 1 — LibGen Dump Conversion (Proof of Concept)
+## LibGen Ingestion (Phase 1)
 
 - [ ] Implement LibGen SQL dump parser (MySQL dump subset: `CREATE TABLE`, `INSERT ... VALUES`, escaping, NULL/numbers).
 - [ ] Implement offline conversion path: dump → intermediate (TSV/CSV/JSONL) → Postgres `COPY`.
@@ -32,7 +53,7 @@ framework.
 - [ ] Implement `update libgen` (incremental) command to ingest a newer dump and apply changes incrementally.
 - [ ] Implement verification/stats commands for LibGen ingestion (`stats`, `sample`, `validate`).
 
-## Tranche 2 — Additional Sources (Not in Phase 1)
+## Additional Sources (Future)
 
 - [ ] Add Open Library adapter crate and schema (`src_openlibrary`).
 - [ ] Add OpenAlex adapter crate and schema (`src_openalex`).

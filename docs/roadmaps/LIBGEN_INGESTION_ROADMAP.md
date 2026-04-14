@@ -1,59 +1,65 @@
 # LibGen Conversion → PostgreSQL Roadmap (Phase 1)
 
 End goal: point `bulk-merge` at a LibGen `fiction` dump or `libgen compact` dump
-and ingest it into PostgreSQL into dedicated tables for that dump type, with
-incremental updates when pointed at a newer dump.
+and ingest it into PostgreSQL into dedicated tables for that dump kind. Pointing
+at a newer dump should update the corresponding table incrementally.
 
-Notes:
+Scope notes:
 - This roadmap is strictly LibGen ingestion (no cross-source merge).
-- Each actionable item is implementable and verifiable in this repo (build/tests).
+- Items are organized by feature area (not by work tranche).
 
-## Tranche 1 — CLI + Config + Meta Bookkeeping (Prereqs)
+## CLI Commands (Operator Surface)
 
-- [ ] Add `clap` CLI skeleton with `libgen ingest` and `libgen update` subcommands.
-- [ ] Add TOML config model for Postgres + LibGen ingestion settings.
-- [ ] Add `tracing` setup with log level/format configurable via TOML and CLI overrides.
-- [ ] Add Postgres migrations for `bm_meta` (`import_run`, `import_file`, `import_checkpoint`).
-- [ ] Add `src_libgen` schema creation and schema-version tracking.
+- [ ] `bulk-merge init-db` provisions `bm_meta` and LibGen schemas/tables.
+- [ ] `bulk-merge libgen ingest --kind {fiction|compact} --dump <path>` ingests a dump into the dedicated tables.
+- [ ] `bulk-merge libgen update --kind {fiction|compact} --dump <path>` applies an incremental update from a newer dump.
+- [ ] `bulk-merge libgen stats` prints counts and last-run info.
+- [ ] `bulk-merge libgen sample` prints a small sample of rows (human/json).
+- [ ] `bulk-merge libgen validate` runs minimal invariants and reports failures.
 
-## Tranche 2 — Dump Detection + Table Provisioning
+## Configuration & Policies (Control Pane)
 
-- [ ] Implement dump kind detection (`fiction` vs `compact`) from CLI flag and/or file heuristics.
-- [ ] Define dedicated Postgres table naming strategy per dump kind (configurable prefix).
-- [ ] Implement table provisioning for each kind, keeping schemas isolated (no mixing).
-- [ ] Store raw rows in a raw landing table with provenance (`import_run_id`, file, line/offset, sha256).
+- [ ] TOML config includes Postgres connection details (credentials/host/db), schema/table naming policy, and all tunables (batching, concurrency, retries, timeouts).
+- [ ] TOML config includes LibGen dump settings (kind/path/dataset_id) and resumability/incremental strategy knobs.
+- [ ] CLI can override high-value runtime knobs (log level/format, config path, dry-run).
 
-## Tranche 3 — MySQL Dump Parser (Subset)
+## Import Bookkeeping (`bm_meta`)
+
+- [ ] Migrations for `bm_meta.import_run`, `bm_meta.import_file`, `bm_meta.import_checkpoint`.
+- [ ] Every ingest/update creates an `import_run` row with config snapshot.
+- [ ] Per-file accounting tracks progress (bytes/records/offsets) and supports resume.
+
+## Table Provisioning (Dedicated Tables per Kind)
+
+- [ ] Dedicated table naming strategy for `fiction` vs `compact` (configurable; never mixed).
+- [ ] Provision raw landing table(s) and the kind-specific table(s) on demand.
+- [ ] Store provenance on raw rows (`import_run_id`, file, line/offset, sha256).
+
+## MySQL Dump Parser (Supported Subset)
 
 - [ ] Parse `CREATE TABLE` to capture column order and rough types (ignore engine/charset noise).
 - [ ] Parse `INSERT INTO ... VALUES (...)` including multi-row inserts.
 - [ ] Correctly decode MySQL string escapes, NULL, numbers, and backtick identifiers.
-- [ ] Add parser unit tests with fixtures for tricky escaping and multi-row inserts.
+- [ ] Guardrails: maximum statement size, bounded buffering, explicit error reporting with context.
+- [ ] Parser unit tests with fixtures (escaping, multi-row inserts, odd quoting).
 
-## Tranche 4 — Offline Conversion Path (File Artifact + COPY)
+## Offline Conversion Path (Intermediate Artifact + COPY)
 
-- [ ] Implement converter: MySQL dump → normalized intermediate (TSV/CSV/JSONL; choose one and document).
-- [ ] Implement Postgres loader using `COPY` into raw landing and/or staging tables.
-- [ ] Add checkpoints so conversion/loading can resume without reprocessing completed regions.
-- [ ] Add tests that run conversion on a small fixture dump and load into a temp Postgres (if feasible in CI).
+- [ ] Convert MySQL dump → normalized intermediate format (choose one: TSV/CSV/JSONL; document choice).
+- [ ] Load intermediate into Postgres using `COPY` (fast path).
+- [ ] Resumability: checkpoints allow restarting without reprocessing completed regions.
 
-## Tranche 5 — Streaming Ingestion Path (No Intermediate Files)
+## Streaming Ingestion Path (No Intermediate Files)
 
-- [ ] Implement streaming loader: parse dump and feed batched loads (client-side COPY preferred).
-- [ ] Implement bounded buffering (`max_rows`/`max_bytes`) and backpressure.
-- [ ] Reuse the same parser core as offline conversion (two sinks).
-- [ ] Add resumability for streaming ingestion via `bm_meta` checkpoints (resume from last processed offset/line).
+- [ ] Parse dump and feed batched loads directly to Postgres (client-side COPY preferred).
+- [ ] Resumability: checkpoints allow resuming from last processed offset/line.
+- [ ] Backpressure and bounded memory (`max_rows`/`max_bytes`).
 
-## Tranche 6 — Incremental Updates (Newer Dumps)
+## Incremental Updates (Newer Dumps)
 
 - [ ] Define stable per-kind key strategy (config: primary key columns; fallback to row-hash).
-- [ ] Implement `libgen update` that imports a newer dump version and applies changes incrementally.
-- [ ] Persist update state in `bm_meta` (dataset_id, last ingested version, checkpoints).
-- [ ] Implement configurable delete handling (tombstones vs keep-old).
-- [ ] Add tests for incremental apply logic using two fixture dumps (v1 → v2).
+- [ ] `libgen update` imports a newer dump and applies changes incrementally.
+- [ ] Persist incremental update state in `bm_meta` (`dataset_id`, last ingested version, checkpoints).
+- [ ] Configurable delete handling (tombstones vs keep-old).
+- [ ] Tests for incremental apply logic using two fixture dumps (v1 → v2).
 
-## Tranche 7 — Operator-Facing Commands
-
-- [ ] Implement `libgen stats` command: counts, newest import run, basic sanity metrics.
-- [ ] Implement `libgen sample` command: print N rows (human/json output).
-- [ ] Implement `libgen validate` command: minimal invariants (row counts non-zero, key uniqueness if configured).
