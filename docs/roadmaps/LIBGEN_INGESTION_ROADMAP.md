@@ -10,23 +10,31 @@ Scope notes:
 
 ## CLI Commands (Operator Surface)
 
-- [ ] `bulk-merge init-db` provisions `bm_meta` and LibGen schemas/tables.
-- [ ] `bulk-merge libgen ingest --kind {fiction|compact} --dump <path>` ingests a dump into the dedicated tables.
-- [ ] `bulk-merge libgen update --kind {fiction|compact} --dump <path>` applies an incremental update from a newer dump.
-- [ ] `bulk-merge libgen stats` prints counts and last-run info.
+- [x] `bulk-merge init-db` provisions `bm_meta` and the `src_libgen` schema.
+- [ ] `bulk-merge init-db` provisions LibGen kind-specific tables (once schema discovery exists).
+- [x] `bulk-merge libgen ingest ...` registers an `import_run` (Phase 1 scaffolding).
+- [ ] `bulk-merge libgen ingest ...` ingests a dump into the dedicated tables.
+- [x] `bulk-merge libgen update ...` registers an `import_run` (Phase 1 scaffolding).
+- [ ] `bulk-merge libgen update ...` applies an incremental update from a newer dump.
+- [x] `bulk-merge libgen stats` command exists (placeholder).
+- [ ] `bulk-merge libgen stats` prints real counts and last-run info.
+- [x] `bulk-merge libgen sample` command exists (placeholder).
 - [ ] `bulk-merge libgen sample` prints a small sample of rows (human/json).
+- [x] `bulk-merge libgen validate` command exists (placeholder).
 - [ ] `bulk-merge libgen validate` runs minimal invariants and reports failures.
 
 ## Configuration & Policies (Control Pane)
 
-- [ ] TOML config includes Postgres connection details (credentials/host/db), schema/table naming policy, and all tunables (batching, concurrency, retries, timeouts).
-- [ ] TOML config includes LibGen dump settings (kind/path/dataset_id) and resumability/incremental strategy knobs.
-- [ ] CLI can override high-value runtime knobs (log level/format, config path, dry-run).
+- [x] TOML config includes Postgres connection details (credentials/host/db) and core tunables (pooling, batching, retries).
+- [ ] TOML config includes full schema/table naming policy for LibGen provisioned tables.
+- [x] TOML config includes LibGen dump kind and resumability/incremental strategy knobs (initial surface).
+- [ ] TOML config includes LibGen dump path and dataset_id as first-class settings.
+- [x] CLI can override high-value runtime knobs (log level/format, config path, dry-run).
 
 ## Import Bookkeeping (`bm_meta`)
 
-- [ ] Migrations for `bm_meta.import_run`, `bm_meta.import_file`, `bm_meta.import_checkpoint`.
-- [ ] Every ingest/update creates an `import_run` row with config snapshot.
+- [x] Migrations for `bm_meta.import_run`, `bm_meta.import_file`, `bm_meta.import_checkpoint`.
+- [x] Every ingest/update creates an `import_run` row with config snapshot (Phase 1 scaffolding).
 - [ ] Per-file accounting tracks progress (bytes/records/offsets) and supports resume.
 
 ## Table Provisioning (Dedicated Tables per Kind)

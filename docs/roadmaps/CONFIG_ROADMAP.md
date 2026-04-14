@@ -6,52 +6,52 @@ vary across environments should be expressed here rather than hardcoded.
 
 ## Canonical Config
 
-- [ ] Create a canonical config file at `config/bulk-merge.toml`.
-- [ ] Define and document config schema in `docs/config.md` (tables + examples).
+- [x] Create a canonical config file at `config/bulk-merge.toml`.
+- [ ] Define and document full config schema in `docs/config.md` (tables + examples).
 
 ## Logging & Observability
 
-- [ ] `logging.level` (default and per-module overrides).
-- [ ] `logging.format` (`human` | `json`).
-- [ ] `logging.include_target` / `logging.include_location` toggles.
+- [x] `logging.level` (default and per-module overrides).
+- [x] `logging.format` (`human` | `json`).
+- [x] `logging.include_target` / `logging.include_location` toggles.
 
 ## PostgreSQL Target (Connection + Namespacing)
 
-- [ ] `postgres.url` (connection string including credentials/host/db).
+- [x] `postgres.url` (connection string including credentials/host/db).
 - [ ] `postgres.statement_timeout_ms`.
-- [ ] `postgres.schema_meta` (default `bm_meta`).
-- [ ] `postgres.schema_libgen` (default `src_libgen`).
+- [x] `postgres.schema_meta` (default `bm_meta`).
+- [x] `postgres.schema_libgen` (default `src_libgen`).
 - [ ] `postgres.table_prefix` (optional naming policy for provisioned tables).
 
 ## PostgreSQL Pooling & Performance
 
-- [ ] `postgres.pool.max_connections`.
-- [ ] `postgres.pool.min_connections`.
-- [ ] `postgres.pool.acquire_timeout_ms`.
+- [x] `postgres.pool.max_connections`.
+- [x] `postgres.pool.min_connections`.
+- [x] `postgres.pool.acquire_timeout_ms`.
 
 ## PostgreSQL Indexing Policy (Ingest Speed First)
 
-- [ ] `postgres.indexing.create_after_load` (bool; default true).
-- [ ] `postgres.indexing.concurrent` (bool; optional, for post-load index creation).
+- [x] `postgres.indexing.create_after_load` (bool; default true).
+- [x] `postgres.indexing.concurrent` (bool; optional, for post-load index creation).
 - [ ] `postgres.indexing.main_fields` (per dump kind list of columns to index for quick search).
 
 ## Import Execution Policy
 
-- [ ] `execution.dry_run_default` (default false; overridable by CLI).
-- [ ] `execution.concurrency` (bounds and defaults for parsing/loading).
-- [ ] `execution.batch.max_rows` (for COPY/flush boundaries).
-- [ ] `execution.batch.max_bytes` (memory guardrail).
-- [ ] `execution.retry.max_attempts`.
-- [ ] `execution.retry.backoff_ms_initial`.
-- [ ] `execution.retry.backoff_ms_max`.
+- [x] `execution.dry_run_default` (default false; overridable by CLI).
+- [x] `execution.concurrency` (bounds and defaults for parsing/loading).
+- [x] `execution.batch.max_rows` (for COPY/flush boundaries).
+- [x] `execution.batch.max_bytes` (memory guardrail).
+- [x] `execution.retry.max_attempts`.
+- [x] `execution.retry.backoff_ms_initial`.
+- [x] `execution.retry.backoff_ms_max`.
 
 ## LibGen Input & Parsing Policy
 
-- [ ] `libgen.dump.kind` (`fiction` | `compact`).
+- [x] `libgen.dump.kind` (`fiction` | `compact`).
 - [ ] `libgen.dump.path` (file path or directory policy).
 - [ ] `libgen.dump.dataset_id` (stable identifier for checkpointing/incrementals).
-- [ ] `libgen.dump.allow_invalid_utf8` policy.
-- [ ] `libgen.dump.max_statement_bytes` (guardrail).
+- [x] `libgen.dump.allow_invalid_utf8` policy.
+- [x] `libgen.dump.max_statement_bytes` (guardrail).
 
 ## LibGen Table Provisioning
 
@@ -61,18 +61,18 @@ vary across environments should be expressed here rather than hardcoded.
 
 ## LibGen Resumability & Checkpointing
 
-- [ ] `libgen.resume.enabled` toggle.
-- [ ] `libgen.resume.checkpoint_granularity` (statement/row/file offset policy).
+- [x] `libgen.resume.enabled` toggle.
+- [x] `libgen.resume.checkpoint_granularity` (statement/row/file offset policy).
 
 ## LibGen Incremental Updates
 
-- [ ] `libgen.incremental.strategy` (primary-key vs row-hash).
+- [x] `libgen.incremental.strategy` (primary-key vs row-hash).
 - [ ] `libgen.incremental.primary_key_columns` (per dump kind).
 - [ ] `libgen.incremental.row_hash.enabled` and algorithm name.
-- [ ] `libgen.incremental.apply_deletes` (tombstones vs keep-old).
+- [x] `libgen.incremental.apply_deletes` (tombstones vs keep-old).
 
 ## Output & Reporting
 
-- [ ] `output.format` (`human` | `json`).
-- [ ] `output.color` (`auto` | `always` | `never`).
+- [x] `output.format` (`human` | `json`).
+- [x] `output.color` (`auto` | `always` | `never`).
 - [ ] `output.report_path` (optional file output).

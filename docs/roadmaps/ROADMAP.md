@@ -9,34 +9,37 @@ framework.
 
 ## Project Definition
 
-- [ ] Document project goal/non-goals and Phase 1 scope in `README.md`.
+- [x] Document project goal/non-goals and Phase 1 scope in `README.md`.
 
 ## CLI Surface
 
-- [ ] Define CLI surface for LibGen ingestion in `docs/cli.md` (commands, args, exit codes).
+- [x] Define CLI surface for LibGen ingestion in `docs/cli.md` (commands, args, exit codes).
 
 ## Crate Structure
 
-- [ ] Establish crate layout (`lib.rs` + `main.rs`) and module boundaries for adapters/backends.
+- [x] Establish crate layout (`lib.rs` + `main.rs`) and module boundaries for adapters/backends.
 
 ## Logging & Error Handling
 
-- [ ] Add structured logging via `tracing` + `tracing-subscriber` (configurable via TOML and CLI).
-- [ ] Add error strategy (`thiserror` for domain, `anyhow` at CLI boundaries with context).
+- [x] Add structured logging via `tracing` + `tracing-subscriber` (configurable via TOML and CLI).
+- [x] Add `anyhow` for CLI/top-level error context.
+- [ ] Add `thiserror` domain error types (as LibGen parser/ingestion modules are implemented).
 
 ## Configuration (Control Pane)
 
-- [ ] Add TOML config loading + validated config model (the control pane).
-- [ ] Add `--config` flag and env override support (documented).
+- [x] Add TOML config loading (the control pane).
+- [ ] Add config validation (fail-fast on invalid/missing settings with clear errors).
+- [x] Add `--config` flag (documented in `docs/cli.md`).
+- [ ] Add env override support (documented).
 
 ## CLI Implementation
 
-- [ ] Add `clap`-based CLI parsing with help/version output.
-- [ ] Add `--dry-run` support for all mutating commands.
+- [x] Add `clap`-based CLI parsing with help/version output.
+- [x] Add `--dry-run` support for mutating commands (Phase 1 scaffolding).
 
 ## Database Foundations
 
-- [ ] Add Postgres connection + migrations for `bm_meta` import bookkeeping.
+- [x] Add Postgres connection + migrations for `bm_meta` import bookkeeping.
 
 ## Testing
 

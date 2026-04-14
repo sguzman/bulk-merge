@@ -1,0 +1,58 @@
+# bulk-merge control pane (TOML)
+#
+# Default values are set for the provided `tmp/docker-compose.yaml` Postgres instance.
+
+[postgres]
+# Includes credentials/host/db. For the docker-compose in `tmp/`, the port is published
+# to the host, so `127.0.0.1:5432` is correct when running the CLI on the host.
+url = "postgresql://admin:admin@127.0.0.1:5432/data"
+
+# These schemas are created by `bulk-merge init-db`.
+schema_meta = "bm_meta"
+schema_libgen = "src_libgen"
+
+[postgres.pool]
+max_connections = 10
+min_connections = 0
+acquire_timeout_ms = 30_000
+
+[logging]
+level = "info"
+format = "human" # "human" | "json"
+include_target = false
+include_location = false
+
+[execution]
+dry_run_default = false
+concurrency = 2
+
+[execution.batch]
+max_rows = 25_000
+max_bytes = 64_000_000
+
+[execution.retry]
+max_attempts = 3
+backoff_ms_initial = 250
+backoff_ms_max = 5_000
+
+[output]
+format = "human" # "human" | "json"
+color = "auto"   # "auto" | "always" | "never"
+
+[libgen.dump]
+kind = "fiction" # "fiction" | "compact"
+allow_invalid_utf8 = false
+max_statement_bytes = 16_000_000
+
+[libgen.resume]
+enabled = true
+checkpoint_granularity = "statement" # "statement" | "row"
+
+[libgen.incremental]
+strategy = "primary_key" # "primary_key" | "row_hash"
+apply_deletes = false
+
+[postgres.indexing]
+create_after_load = true
+concurrent = false
+
