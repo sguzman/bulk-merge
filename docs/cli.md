@@ -74,6 +74,7 @@ Offline conversion mode:
 - converts a MySQL dump into intermediate `*.tsv` files (one per MySQL table)
 - writes `manifest.json` (schema + table defs) and `state.json` (byte offset) for resumability
 - can be resumed by re-running the same command with the same `--out-dir`
+- default `--out-dir` is controlled by `libgen.offline.out_dir_default` (default: `.cache/bulk-merge/libgen-offline`)
 
 ### `bulk-merge libgen load --in-dir <dir>`
 

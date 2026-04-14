@@ -73,7 +73,7 @@ fiction_prefix = "fiction_"
 compact_prefix = "compact_"
 
 [libgen.offline]
-out_dir_default = "tmp/libgen-offline"
+out_dir_default = ".cache/bulk-merge/libgen-offline"
 
 [libgen.resume]
 enabled = true

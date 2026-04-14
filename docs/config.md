@@ -58,7 +58,7 @@ Environment overrides:
 
 ## LibGen offline mode (intermediate TSV)
 
-- `libgen.offline.out_dir_default`: default directory for `bulk-merge libgen convert` output (`manifest.json`, `state.json`, `*.tsv`).
+- `libgen.offline.out_dir_default`: default directory for `bulk-merge libgen convert` output (`manifest.json`, `state.json`, `*.tsv`). Default: `.cache/bulk-merge/libgen-offline`.
 
 ## LibGen incremental strategy
 

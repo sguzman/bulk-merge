@@ -549,7 +549,7 @@ impl Default for LibgenOfflineConfig {
 }
 
 fn default_libgen_offline_out_dir() -> String {
-    "tmp/libgen-offline".to_string()
+    ".cache/bulk-merge/libgen-offline".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize)]
