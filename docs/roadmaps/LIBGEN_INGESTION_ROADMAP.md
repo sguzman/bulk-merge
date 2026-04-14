@@ -42,6 +42,7 @@ Notes:
 - [ ] Implement streaming loader: parse dump and feed batched loads (client-side COPY preferred).
 - [ ] Implement bounded buffering (`max_rows`/`max_bytes`) and backpressure.
 - [ ] Reuse the same parser core as offline conversion (two sinks).
+- [ ] Add resumability for streaming ingestion via `bm_meta` checkpoints (resume from last processed offset/line).
 
 ## Tranche 6 — Incremental Updates (Newer Dumps)
 
@@ -56,4 +57,3 @@ Notes:
 - [ ] Implement `libgen stats` command: counts, newest import run, basic sanity metrics.
 - [ ] Implement `libgen sample` command: print N rows (human/json output).
 - [ ] Implement `libgen validate` command: minimal invariants (row counts non-zero, key uniqueness if configured).
-
