@@ -57,6 +57,7 @@ framework.
 - [x] Implement resumable import with checkpoints (byte-offset) in `bm_meta.import_checkpoint`.
 - [x] Implement `ingest libgen` command that accepts either dump type and provisions tables automatically.
 - [x] Implement `update libgen` (incremental) command to ingest a newer dump and apply changes incrementally (Phase 1: upsert by configured primary key columns).
+- [x] Persist dataset-level state for incremental updates (`bm_meta.dataset_state`).
 - [x] Implement verification/stats commands for LibGen ingestion (`stats`, `sample`, `validate`).
 
 ## Additional Sources (Future)

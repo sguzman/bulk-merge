@@ -98,11 +98,42 @@ pub async fn register_run(
         kind_prefix,
         mode,
         conflict_columns,
+        apply_deletes: config.libgen.incremental.apply_deletes && mode == IngestMode::Update,
     };
 
     ingest_dump_rows(&db, config, &plan, run_id)
         .await
         .context("failed ingesting dump rows")?;
+
+    if plan.apply_deletes {
+        // Phase 1: deletes supported only when PK is single-column.
+        if plan.conflict_columns.len() != 1 {
+            anyhow::bail!(
+                "apply_deletes requires exactly 1 primary key column, got {}",
+                plan.conflict_columns.len()
+            );
+        }
+        let pk_col = &plan.conflict_columns[0];
+        info!(pk_col = %pk_col, "applying deletes (rows not present in new dump)");
+        for def in &plan.table_defs {
+            if def.columns.iter().any(|c| c.name == *pk_col) {
+                let pg_table = plan.pg_table_for_mysql(&def.name);
+                let deleted = db
+                    .delete_rows_not_seen(
+                        &config.postgres.schema_libgen,
+                        &pg_table,
+                        &def.name,
+                        pk_col,
+                        run_id,
+                    )
+                    .await
+                    .with_context(|| format!("failed applying deletes for `{}`", pg_table))?;
+                if deleted > 0 {
+                    info!(table = %pg_table, deleted, "deleted rows not present in new dump");
+                }
+            }
+        }
+    }
 
     if config.postgres.indexing.create_after_load {
         let main_fields = match kind {
@@ -133,6 +164,14 @@ pub async fn register_run(
     db.finish_import_run(run_id, ImportRunStatus::Succeeded)
         .await
         .context("failed to update import run status")?;
+
+    let kind_str = match kind {
+        LibgenDumpKind::Fiction => "fiction",
+        LibgenDumpKind::Compact => "compact",
+    };
+    db.upsert_dataset_state("libgen", &dataset_id, kind_str, run_id, dataset_version.as_deref())
+        .await
+        .context("failed updating bm_meta.dataset_state")?;
 
     Ok(())
 }

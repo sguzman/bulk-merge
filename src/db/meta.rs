@@ -571,6 +571,99 @@ where import_run_id = $1
         .await?;
         Ok(rec.0)
     }
+
+    #[instrument(skip_all, fields(source_name = source_name, dataset_id = dataset_id, kind = kind, run_id = import_run_id))]
+    pub async fn upsert_dataset_state(
+        &self,
+        source_name: &str,
+        dataset_id: &str,
+        kind: &str,
+        import_run_id: i64,
+        dataset_version: Option<&str>,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            r#"
+insert into bm_meta.dataset_state
+  (source_name, dataset_id, kind, last_succeeded_import_run_id, last_dataset_version)
+values ($1, $2, $3, $4, $5)
+on conflict (source_name, dataset_id, kind)
+do update set
+  last_succeeded_import_run_id = excluded.last_succeeded_import_run_id,
+  last_dataset_version = excluded.last_dataset_version,
+  updated_at = now()
+"#,
+        )
+        .bind(source_name)
+        .bind(dataset_id)
+        .bind(kind)
+        .bind(import_run_id)
+        .bind(dataset_version)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(import_run_id = import_run_id, table = table_name, pk_column = pk_column, values = values.len()))]
+    pub async fn insert_seen_pk_values(
+        &self,
+        import_run_id: i64,
+        table_name: &str,
+        pk_column: &str,
+        values: &[String],
+    ) -> anyhow::Result<()> {
+        if values.is_empty() {
+            return Ok(());
+        }
+
+        let mut qb = sqlx::QueryBuilder::new(
+            "insert into src_libgen.seen_pk (import_run_id, table_name, pk_column, pk_value) ",
+        );
+        qb.push_values(values, |mut b, v| {
+            b.push_bind(import_run_id);
+            b.push_bind(table_name);
+            b.push_bind(pk_column);
+            b.push_bind(v);
+        });
+        qb.push(" on conflict do nothing");
+        qb.build().execute(&self.pool).await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, pk_column = pk_column, import_run_id = import_run_id))]
+    pub async fn delete_rows_not_seen(
+        &self,
+        schema: &str,
+        table: &str,
+        mysql_table_name: &str,
+        pk_column: &str,
+        import_run_id: i64,
+    ) -> anyhow::Result<u64> {
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let pk_q = quote_ident(pk_column);
+
+        let sql = format!(
+            r#"
+delete from {schema_q}.{table_q} t
+where not exists (
+  select 1
+  from src_libgen.seen_pk s
+  where s.import_run_id = $1
+    and s.table_name = $2
+    and s.pk_column = $3
+    and s.pk_value = t.{pk_q}
+)
+"#
+        );
+
+        let res = sqlx::query(&sql)
+            .bind(import_run_id)
+            .bind(mysql_table_name)
+            .bind(pk_column)
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected())
+    }
 }
 
 fn quote_ident(ident: &str) -> String {

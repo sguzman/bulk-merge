@@ -16,6 +16,7 @@ pub struct IngestPlan {
     pub kind_prefix: String,
     pub mode: IngestMode,
     pub conflict_columns: Vec<String>,
+    pub apply_deletes: bool,
 }
 
 impl IngestPlan {
@@ -74,6 +75,7 @@ pub async fn ingest_dump_rows(
 
     let mut rows_loaded: u64 = 0;
     let mut rows_seen: u64 = 0;
+    let mut seen_pk_buf: Vec<String> = Vec::new();
     while let Some(stmt) = stmt_reader
         .next_statement()
         .context("failed reading statement")?
@@ -114,6 +116,22 @@ pub async fn ingest_dump_rows(
         let pg_table = plan.pg_table_for_mysql(&insert.table);
         let cols: Vec<String> = def.columns.iter().map(|c| c.name.clone()).collect();
 
+        let pk_col = if plan.mode == IngestMode::Update && plan.apply_deletes {
+            // Phase 1 limitation: only support single-column PK for delete handling.
+            if plan.conflict_columns.len() != 1 {
+                anyhow::bail!(
+                    "apply_deletes requires exactly 1 primary key column, got {}",
+                    plan.conflict_columns.len()
+                );
+            }
+            Some(plan.conflict_columns[0].clone())
+        } else {
+            None
+        };
+        let pk_index = pk_col
+            .as_ref()
+            .and_then(|pk| cols.iter().position(|c| c == pk));
+
         // Chunk large INSERT statements without buffering the entire INSERT in memory.
         let batch_max_rows = config.execution.batch.max_rows.max(1) as usize;
         let batch_max_bytes = config.execution.batch.max_bytes.max(1) as usize;
@@ -124,6 +142,7 @@ pub async fn ingest_dump_rows(
 
         for row in insert.rows {
             let mut out_row: Vec<Option<String>> = Vec::with_capacity(row.len());
+            let mut pk_value_for_seen: Option<String> = None;
             for v in row {
                 match v {
                     Value::Null => out_row.push(None),
@@ -133,6 +152,16 @@ pub async fn ingest_dump_rows(
                     }
                 }
             }
+
+            if let Some(idx) = pk_index {
+                if let Some(Some(v)) = out_row.get(idx) {
+                    pk_value_for_seen = Some(v.clone());
+                }
+            }
+            if let Some(v) = pk_value_for_seen {
+                seen_pk_buf.push(v);
+            }
+
             chunk.push(out_row);
 
             if chunk.len() >= batch_max_rows || chunk_bytes >= batch_max_bytes || chunk_bytes >= mem_limit / 2
@@ -158,6 +187,15 @@ pub async fn ingest_dump_rows(
                 rows_loaded += chunk.len() as u64;
                 chunk.clear();
                 chunk_bytes = 0;
+
+                if let (Some(pk_col), true) = (pk_col.as_deref(), plan.apply_deletes) {
+                    if !seen_pk_buf.is_empty() {
+                        db.insert_seen_pk_values(import_run_id, &insert.table, pk_col, &seen_pk_buf)
+                            .await
+                            .context("failed inserting seen_pk values")?;
+                        seen_pk_buf.clear();
+                    }
+                }
             }
         }
 
@@ -181,6 +219,15 @@ pub async fn ingest_dump_rows(
                 }
             }
             rows_loaded += chunk.len() as u64;
+        }
+
+        if let (Some(pk_col), true) = (pk_col.as_deref(), plan.apply_deletes) {
+            if !seen_pk_buf.is_empty() {
+                db.insert_seen_pk_values(import_run_id, &insert.table, pk_col, &seen_pk_buf)
+                    .await
+                    .context("failed inserting seen_pk values")?;
+                seen_pk_buf.clear();
+            }
         }
 
         if config.libgen.resume.enabled {

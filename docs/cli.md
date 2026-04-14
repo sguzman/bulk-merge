@@ -36,6 +36,7 @@ Phase 1 current behavior:
 - registers an import run in `bm_meta.import_run`
 - provisions tables from the dump schema (same as `ingest`)
 - ingests rows via upsert (`ON CONFLICT`) using `libgen.incremental.primary_key_columns` (full scan; applies changes incrementally)
+- when `libgen.incremental.apply_deletes = true` and the PK is a single column, deletes rows not present in the new dump
 
 ### `bulk-merge libgen stats`
 
