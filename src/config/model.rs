@@ -20,6 +20,7 @@ impl AppConfig {
         let contents = std::fs::read_to_string(path)?;
         let mut config: Self = toml::from_str(&contents)?;
         config.apply_env_overrides();
+        config.normalize();
         config.validate()?;
         Ok(config)
     }
@@ -70,6 +71,29 @@ impl AppConfig {
                 "human" => self.logging.format = LogFormat::Human,
                 "json" => self.logging.format = LogFormat::Json,
                 _ => {}
+            }
+        }
+    }
+
+    fn normalize(&mut self) {
+        if let Some(timeout) = self.postgres.statement_timeout_ms {
+            if timeout == 0 {
+                self.postgres.statement_timeout_ms = None;
+            }
+        }
+        if let Some(path) = &self.output.report_path {
+            if path.trim().is_empty() {
+                self.output.report_path = None;
+            }
+        }
+        if let Some(path) = &self.libgen.dump.path {
+            if path.trim().is_empty() {
+                self.libgen.dump.path = None;
+            }
+        }
+        if let Some(dataset_id) = &self.libgen.dump.dataset_id {
+            if dataset_id.trim().is_empty() {
+                self.libgen.dump.dataset_id = None;
             }
         }
     }
@@ -131,6 +155,12 @@ impl AppConfig {
             errors.push("progress.log_interval_seconds must be > 0".to_string());
         }
 
+        if let Some(path) = &self.output.report_path {
+            if path.trim().is_empty() {
+                errors.push("output.report_path must not be empty when set".to_string());
+            }
+        }
+
         if errors.is_empty() {
             Ok(())
         } else {
@@ -163,6 +193,8 @@ pub struct PostgresConfig {
     pub pool: PostgresPoolConfig,
     #[serde(default)]
     pub indexing: PostgresIndexingConfig,
+    #[serde(default)]
+    pub statement_timeout_ms: Option<u64>,
 }
 
 impl PostgresConfig {
@@ -424,6 +456,8 @@ pub struct OutputConfig {
     pub format: OutputFormat,
     #[serde(default = "default_output_color")]
     pub color: OutputColor,
+    #[serde(default)]
+    pub report_path: Option<String>,
 }
 
 impl Default for OutputConfig {
@@ -431,6 +465,7 @@ impl Default for OutputConfig {
         Self {
             format: default_output_format(),
             color: default_output_color(),
+            report_path: None,
         }
     }
 }

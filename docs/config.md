@@ -31,6 +31,10 @@ Schemas used by the project:
 - `postgres.schema_meta` (default `bm_meta`)
 - `postgres.schema_libgen` (default `src_libgen`)
 
+Optional:
+
+- `postgres.statement_timeout_ms`: sets `statement_timeout` after connecting (applies to every pooled connection).
+
 ## Logging
 
 - `logging.level`: `trace|debug|info|warn|error`
@@ -58,3 +62,7 @@ Environment overrides:
 - `libgen.incremental.row_hash.enabled`: when enabled with `strategy="row_hash"`, adds `_bm_row_hash` to provisioned tables and de-dupes by row hash
 
 Note: `row_hash` provides idempotent ingestion/de-duplication, but it does not model “updates” unless the source provides stable keys.
+
+## Output reporting
+
+- `output.report_path`: when set, appends JSON lines describing command outputs (useful for automation/log shipping).

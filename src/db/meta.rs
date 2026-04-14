@@ -33,7 +33,18 @@ impl Db {
     pub async fn connect(config: &AppConfig) -> anyhow::Result<Self> {
         let acquire_timeout = Duration::from_millis(config.postgres.pool.acquire_timeout_ms);
         let url = config.postgres.connection_url()?;
-        let pool = PgPoolOptions::new()
+        let mut opts = PgPoolOptions::new();
+        if let Some(timeout_ms) = config.postgres.statement_timeout_ms {
+            opts = opts.after_connect(move |conn, _meta| {
+                Box::pin(async move {
+                    let sql = format!("set statement_timeout = {timeout_ms}");
+                    sqlx::query(&sql).execute(conn).await?;
+                    Ok(())
+                })
+            });
+        }
+
+        let pool = opts
             .max_connections(config.postgres.pool.max_connections)
             .min_connections(config.postgres.pool.min_connections)
             .acquire_timeout(acquire_timeout)

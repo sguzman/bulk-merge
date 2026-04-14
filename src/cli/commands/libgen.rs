@@ -3,7 +3,9 @@ use crate::config::{AppConfig, LibgenDumpKind};
 use crate::db::{Db, ImportRunStatus};
 use crate::libgen::ingest::{ingest_dump_rows, IngestMode, IngestPlan};
 use crate::libgen::provision::provision_tables_from_dump;
+use crate::output::maybe_write_report_line;
 use anyhow::Context as _;
+use serde::Serialize;
 use tracing::{info, instrument};
 
 #[instrument(skip_all, fields(op = %op, kind = ?kind, dump = %dump))]
@@ -219,6 +221,24 @@ pub async fn stats(config: &AppConfig) -> anyhow::Result<()> {
         "libgen table stats"
     );
 
+    #[derive(Debug, Serialize)]
+    struct LibgenStatsReport<'a> {
+        fiction_tables: usize,
+        compact_tables: usize,
+        fiction_prefix: &'a str,
+        compact_prefix: &'a str,
+    }
+    maybe_write_report_line(
+        config,
+        "libgen_stats",
+        &LibgenStatsReport {
+            fiction_tables: fiction_tables.len(),
+            compact_tables: compact_tables.len(),
+            fiction_prefix: &fiction_prefix,
+            compact_prefix: &compact_prefix,
+        },
+    )?;
+
     let runs = db.recent_import_runs("libgen", 5).await?;
     if runs.is_empty() {
         info!("no import runs found");
@@ -236,6 +256,28 @@ pub async fn stats(config: &AppConfig) -> anyhow::Result<()> {
             raw_statements = raw_count,
             "recent import run"
         );
+
+        #[derive(Debug, Serialize)]
+        struct LibgenRunReport<'a> {
+            import_run_id: i64,
+            dataset_id: &'a str,
+            dataset_version: Option<&'a str>,
+            status: &'a str,
+            started_at: String,
+            raw_statements: i64,
+        }
+        maybe_write_report_line(
+            config,
+            "libgen_recent_run",
+            &LibgenRunReport {
+                import_run_id: id,
+                dataset_id: &dataset_id,
+                dataset_version: dataset_version.as_deref(),
+                status: &status,
+                started_at: started_at.to_rfc3339(),
+                raw_statements: raw_count,
+            },
+        )?;
     }
 
     Ok(())
@@ -270,6 +312,11 @@ pub async fn sample(
 
     // Phase 1: log sample row count; richer output formatting can follow.
     info!(table = %table, rows = rows.len(), "sampled rows");
+    maybe_write_report_line(
+        config,
+        "libgen_sample",
+        &serde_json::json!({ "table": table, "rows": rows }),
+    )?;
     Ok(())
 }
 
@@ -294,5 +341,10 @@ pub async fn validate(config: &AppConfig, kind: LibgenDumpKind, mysql_table: &st
         anyhow::bail!("validation failed: `{}` has 0 rows", table);
     }
     info!(table = %table, rows = count, "validation ok");
+    maybe_write_report_line(
+        config,
+        "libgen_validate",
+        &serde_json::json!({ "table": table, "rows": count, "ok": true }),
+    )?;
     Ok(())
 }

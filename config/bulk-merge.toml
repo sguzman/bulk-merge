@@ -10,6 +10,7 @@ port = 5432
 user = "admin"
 password = "admin"
 database = "data"
+# statement_timeout_ms = 30_000
 
 # Optional: set a full URL instead of host/port/user/password/database.
 # url = "postgresql://admin:admin@127.0.0.1:5432/data"
@@ -54,6 +55,7 @@ log_interval_seconds = 30
 [output]
 format = "human" # "human" | "json"
 color = "auto"   # "auto" | "always" | "never"
+# report_path = "tmp/bulk-merge-report.jsonl"
 
 [libgen.dump]
 kind = "fiction" # "fiction" | "compact"

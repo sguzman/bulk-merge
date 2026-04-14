@@ -19,7 +19,7 @@ vary across environments should be expressed here rather than hardcoded.
 
 - [x] `postgres.url` optional override (connection string including credentials/host/db).
 - [x] `postgres.host` / `postgres.port` / `postgres.user` / `postgres.password` / `postgres.database`.
-- [ ] `postgres.statement_timeout_ms`.
+- [x] `postgres.statement_timeout_ms`.
 - [x] `postgres.schema_meta` (default `bm_meta`).
 - [x] `postgres.schema_libgen` (default `src_libgen`).
 - [x] `postgres.table_prefix` (optional naming policy for provisioned tables).
@@ -87,4 +87,4 @@ vary across environments should be expressed here rather than hardcoded.
 
 - [x] `output.format` (`human` | `json`).
 - [x] `output.color` (`auto` | `always` | `never`).
-- [ ] `output.report_path` (optional file output).
+- [x] `output.report_path` (optional file output).
