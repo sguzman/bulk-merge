@@ -526,6 +526,8 @@ pub struct LibgenIncrementalConfig {
     pub strategy: String,
     #[serde(default)]
     pub apply_deletes: bool,
+    #[serde(default)]
+    pub primary_key_columns: LibgenPrimaryKeyColumns,
 }
 
 impl Default for LibgenIncrementalConfig {
@@ -533,12 +535,21 @@ impl Default for LibgenIncrementalConfig {
         Self {
             strategy: default_libgen_incremental_strategy(),
             apply_deletes: false,
+            primary_key_columns: LibgenPrimaryKeyColumns::default(),
         }
     }
 }
 
 fn default_libgen_incremental_strategy() -> String {
     "primary_key".to_string()
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct LibgenPrimaryKeyColumns {
+    #[serde(default)]
+    pub fiction: Vec<String>,
+    #[serde(default)]
+    pub compact: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

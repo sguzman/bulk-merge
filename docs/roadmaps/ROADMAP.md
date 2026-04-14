@@ -44,7 +44,7 @@ framework.
 
 ## Testing
 
-- [ ] Add baseline unit tests for config parsing/validation and CLI argument parsing.
+- [x] Add baseline unit tests for config parsing/validation and CLI argument parsing.
 
 ## LibGen Ingestion (Phase 1)
 
@@ -55,9 +55,9 @@ framework.
 - [x] Map MySQL fields 1-to-1 into Postgres columns (Phase 1: store as `text`).
 - [x] Create indexes only after bulk loads finish (post-load indexing) to maximize ingest speed.
 - [x] Implement resumable import with checkpoints (byte-offset) in `bm_meta.import_checkpoint`.
-- [ ] Implement `ingest libgen` command that accepts either dump type and provisions tables automatically.
-- [ ] Implement `update libgen` (incremental) command to ingest a newer dump and apply changes incrementally.
-- [ ] Implement verification/stats commands for LibGen ingestion (`stats`, `sample`, `validate`).
+- [x] Implement `ingest libgen` command that accepts either dump type and provisions tables automatically.
+- [x] Implement `update libgen` (incremental) command to ingest a newer dump and apply changes incrementally (Phase 1: upsert by configured primary key columns).
+- [x] Implement verification/stats commands for LibGen ingestion (`stats`, `sample`, `validate`).
 
 ## Additional Sources (Future)
 

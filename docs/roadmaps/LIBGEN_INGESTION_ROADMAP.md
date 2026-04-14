@@ -14,10 +14,10 @@ Scope notes:
 - [ ] `bulk-merge init-db` provisions LibGen kind-specific tables (once schema discovery exists).
 - [x] `bulk-merge libgen ingest ...` registers an `import_run` (Phase 1 scaffolding).
 - [x] `bulk-merge libgen ingest ...` provisions dedicated tables from dump schema (`CREATE TABLE` discovery).
-- [ ] `bulk-merge libgen ingest ...` ingests row data into the dedicated tables.
+- [x] `bulk-merge libgen ingest ...` ingests row data into the dedicated tables.
 - [x] `bulk-merge libgen update ...` registers an `import_run` (Phase 1 scaffolding).
 - [x] `bulk-merge libgen update ...` provisions tables from dump schema (`CREATE TABLE` discovery).
-- [ ] `bulk-merge libgen update ...` applies an incremental row-level update from a newer dump.
+- [x] `bulk-merge libgen update ...` applies an incremental row-level update from a newer dump (Phase 1: full scan + upsert by primary key).
 - [x] `bulk-merge libgen stats` prints counts and last-run info.
 - [x] `bulk-merge libgen sample` prints a small sample of rows (Phase 1: JSON via `row_to_json`).
 - [x] `bulk-merge libgen validate` runs minimal invariants and reports failures (Phase 1: row count > 0).
@@ -69,7 +69,8 @@ Scope notes:
 ## Incremental Updates (Newer Dumps)
 
 - [ ] Define stable per-kind key strategy (config: primary key columns; fallback to row-hash).
-- [ ] `libgen update` imports a newer dump and applies changes incrementally.
+- [x] Define stable per-kind key strategy (config: primary key columns; fallback to row-hash).
+- [x] `libgen update` imports a newer dump and applies changes incrementally (Phase 1: full scan + upsert by primary key).
 - [ ] Persist incremental update state in `bm_meta` (`dataset_id`, last ingested version, checkpoints).
 - [ ] Configurable delete handling (tombstones vs keep-old).
 - [ ] Tests for incremental apply logic using two fixture dumps (v1 → v2).

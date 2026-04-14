@@ -14,12 +14,20 @@ pub struct IngestPlan {
     pub table_defs: Vec<TableDef>,
     pub overall_prefix: String,
     pub kind_prefix: String,
+    pub mode: IngestMode,
+    pub conflict_columns: Vec<String>,
 }
 
 impl IngestPlan {
     pub fn pg_table_for_mysql(&self, mysql_table: &str) -> String {
         format!("{}{}{}", self.overall_prefix, self.kind_prefix, mysql_table)
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IngestMode {
+    Ingest,
+    Update,
 }
 
 #[instrument(skip_all, fields(kind = ?plan.kind, dump = %plan.dump_path))]
@@ -129,9 +137,24 @@ pub async fn ingest_dump_rows(
 
             if chunk.len() >= batch_max_rows || chunk_bytes >= batch_max_bytes || chunk_bytes >= mem_limit / 2
             {
-                db.insert_rows_text(&config.postgres.schema_libgen, &pg_table, &cols, &chunk)
-                    .await
-                    .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                match plan.mode {
+                    IngestMode::Ingest => {
+                        db.insert_rows_text(&config.postgres.schema_libgen, &pg_table, &cols, &chunk)
+                            .await
+                            .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                    }
+                    IngestMode::Update => {
+                        db.upsert_rows_text(
+                            &config.postgres.schema_libgen,
+                            &pg_table,
+                            &cols,
+                            &plan.conflict_columns,
+                            &chunk,
+                        )
+                        .await
+                        .with_context(|| format!("failed upserting rows into `{}`", pg_table))?;
+                    }
+                }
                 rows_loaded += chunk.len() as u64;
                 chunk.clear();
                 chunk_bytes = 0;
@@ -139,9 +162,24 @@ pub async fn ingest_dump_rows(
         }
 
         if !chunk.is_empty() {
-            db.insert_rows_text(&config.postgres.schema_libgen, &pg_table, &cols, &chunk)
-                .await
-                .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+            match plan.mode {
+                IngestMode::Ingest => {
+                    db.insert_rows_text(&config.postgres.schema_libgen, &pg_table, &cols, &chunk)
+                        .await
+                        .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                }
+                IngestMode::Update => {
+                    db.upsert_rows_text(
+                        &config.postgres.schema_libgen,
+                        &pg_table,
+                        &cols,
+                        &plan.conflict_columns,
+                        &chunk,
+                    )
+                    .await
+                    .with_context(|| format!("failed upserting rows into `{}`", pg_table))?;
+                }
+            }
             rows_loaded += chunk.len() as u64;
         }
 

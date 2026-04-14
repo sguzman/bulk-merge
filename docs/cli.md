@@ -35,9 +35,7 @@ Phase 1 current behavior:
 
 - registers an import run in `bm_meta.import_run`
 - provisions tables from the dump schema (same as `ingest`)
-- ingests rows the same way as `ingest` (incremental update logic is not implemented yet)
-
-Incremental row-level updates are not implemented yet.
+- ingests rows via upsert (`ON CONFLICT`) using `libgen.incremental.primary_key_columns` (full scan; applies changes incrementally)
 
 ### `bulk-merge libgen stats`
 

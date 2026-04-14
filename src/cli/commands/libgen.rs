@@ -1,7 +1,7 @@
 use crate::cli::Args;
 use crate::config::{AppConfig, LibgenDumpKind};
 use crate::db::{Db, ImportRunStatus};
-use crate::libgen::ingest::{ingest_dump_rows, IngestPlan};
+use crate::libgen::ingest::{ingest_dump_rows, IngestMode, IngestPlan};
 use crate::libgen::provision::provision_tables_from_dump;
 use anyhow::Context as _;
 use tracing::{info, instrument};
@@ -54,12 +54,50 @@ pub async fn register_run(
         LibgenDumpKind::Compact => config.libgen.tables.compact_prefix.clone(),
     };
     let overall_prefix = config.postgres.table_prefix.clone().unwrap_or_default();
+
+    let conflict_columns = match kind {
+        LibgenDumpKind::Fiction => config.libgen.incremental.primary_key_columns.fiction.clone(),
+        LibgenDumpKind::Compact => config.libgen.incremental.primary_key_columns.compact.clone(),
+    };
+
+    let mode = match op {
+        "update" => IngestMode::Update,
+        _ => IngestMode::Ingest,
+    };
+
+    if mode == IngestMode::Update {
+        if conflict_columns.is_empty() {
+            anyhow::bail!(
+                "libgen update requires libgen.incremental.primary_key_columns.{:?} to be set",
+                kind
+            );
+        }
+        // Ensure uniqueness so ON CONFLICT is valid and fast.
+        for def in &defs {
+            let pg_table = format!("{overall_prefix}{kind_prefix}{}", def.name);
+            if conflict_columns
+                .iter()
+                .all(|c| def.columns.iter().any(|col| col.name == *c))
+            {
+                db.ensure_unique_index(
+                    &config.postgres.schema_libgen,
+                    &pg_table,
+                    &conflict_columns,
+                    config.postgres.indexing.concurrent,
+                )
+                .await
+                .with_context(|| format!("failed creating unique index for `{}`", pg_table))?;
+            }
+        }
+    }
     let plan = IngestPlan {
         kind,
         dump_path: dump.clone(),
         table_defs: defs,
         overall_prefix,
         kind_prefix,
+        mode,
+        conflict_columns,
     };
 
     ingest_dump_rows(&db, config, &plan, run_id)
@@ -92,7 +130,7 @@ pub async fn register_run(
         }
     }
 
-    db.finish_import_run(run_id, ImportRunStatus::Pending)
+    db.finish_import_run(run_id, ImportRunStatus::Succeeded)
         .await
         .context("failed to update import run status")?;
 

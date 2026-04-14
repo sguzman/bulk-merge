@@ -237,6 +237,75 @@ where id = $1
         Ok(())
     }
 
+    #[instrument(skip_all, fields(schema = schema, table = table, rows = rows.len()))]
+    pub async fn upsert_rows_text(
+        &self,
+        schema: &str,
+        table: &str,
+        columns: &[String],
+        conflict_columns: &[String],
+        rows: &[Vec<Option<String>>],
+    ) -> anyhow::Result<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        if conflict_columns.is_empty() {
+            anyhow::bail!("conflict_columns must not be empty for upsert");
+        }
+
+        let expected_cols = columns.len();
+        for r in rows {
+            if r.len() != expected_cols {
+                anyhow::bail!(
+                    "row length mismatch for upsert: expected {expected_cols}, got {}",
+                    r.len()
+                );
+            }
+        }
+
+        for c in conflict_columns {
+            if !columns.iter().any(|x| x == c) {
+                anyhow::bail!("conflict column `{c}` not present in columns list");
+            }
+        }
+
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let conflict_sql = conflict_columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let update_sql = columns
+            .iter()
+            .map(|c| {
+                let qc = quote_ident(c);
+                format!("{qc} = excluded.{qc}")
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut qb = sqlx::QueryBuilder::new(format!(
+            "insert into {schema_q}.{table_q} ({cols_sql}) "
+        ));
+        qb.push_values(rows, |mut b, row| {
+            for val in row {
+                b.push_bind(val);
+            }
+        });
+        qb.push(format!(
+            " on conflict ({conflict_sql}) do update set {update_sql}"
+        ));
+
+        qb.build().execute(&self.pool).await?;
+        Ok(())
+    }
+
     #[instrument(skip_all, fields(import_run_id = import_run_id, key = %checkpoint_key))]
     pub async fn set_checkpoint_offset(
         &self,
@@ -319,6 +388,53 @@ where import_run_id = $1 and checkpoint_key = $2
         let idx_q = quote_ident(&index_name);
         let sql = format!(
             "create index if not exists {idx_q} on {schema_q}.{table_q} ({col_q})"
+        );
+        sqlx::query(&sql).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, columns = columns.len(), concurrent = concurrent))]
+    pub async fn ensure_unique_index(
+        &self,
+        schema: &str,
+        table: &str,
+        columns: &[String],
+        concurrent: bool,
+    ) -> anyhow::Result<()> {
+        if columns.is_empty() {
+            anyhow::bail!("unique index columns must not be empty");
+        }
+        let index_name = format!("uidx_{}_{}", table, columns.join("_"));
+
+        if concurrent {
+            if self.index_exists(schema, &index_name).await.unwrap_or(false) {
+                return Ok(());
+            }
+            let schema_q = quote_ident(schema);
+            let table_q = quote_ident(table);
+            let cols_sql = columns
+                .iter()
+                .map(|c| quote_ident(c))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let idx_q = quote_ident(&index_name);
+            let sql = format!(
+                "create unique index concurrently {idx_q} on {schema_q}.{table_q} ({cols_sql})"
+            );
+            sqlx::query(&sql).execute(&self.pool).await?;
+            return Ok(());
+        }
+
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let idx_q = quote_ident(&index_name);
+        let sql = format!(
+            "create unique index if not exists {idx_q} on {schema_q}.{table_q} ({cols_sql})"
         );
         sqlx::query(&sql).execute(&self.pool).await?;
         Ok(())

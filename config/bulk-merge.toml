@@ -70,6 +70,7 @@ checkpoint_granularity = "statement" # "statement" | "row"
 [libgen.incremental]
 strategy = "primary_key" # "primary_key" | "row_hash"
 apply_deletes = false
+primary_key_columns = { fiction = ["ID"], compact = ["ID"] }
 
 [libgen.raw]
 enabled = true
