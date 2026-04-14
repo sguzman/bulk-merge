@@ -3,6 +3,7 @@ use anyhow::Context as _;
 use sha2::{Digest as _, Sha256};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::time::Duration;
+use tokio::io::AsyncReadExt;
 use tracing::{info, instrument};
 
 pub struct Db {
@@ -377,6 +378,51 @@ where id = $1
         }
 
         copy_in.send(buf).await?;
+        copy_in.finish().await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, path = %path.display()))]
+    pub async fn copy_in_tsv_file(
+        &self,
+        schema: &str,
+        table: &str,
+        columns: &[String],
+        path: &std::path::Path,
+        file_send_chunk_bytes: u64,
+    ) -> anyhow::Result<()> {
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let copy_stmt = format!(
+            "copy {schema_q}.{table_q} ({cols_sql}) from stdin with (format csv, delimiter E'\\t', null '\\\\N', quote '\"', escape '\"')"
+        );
+
+        let mut f = tokio::fs::File::open(path)
+            .await
+            .with_context(|| format!("failed to open tsv file `{}`", path.display()))?;
+
+        let chunk_size: usize = usize::try_from(file_send_chunk_bytes.max(1))
+            .unwrap_or(1_048_576)
+            .max(1);
+        let mut buf: Vec<u8> = vec![0u8; chunk_size];
+
+        let mut conn = self.pool.acquire().await?;
+        let mut copy_in = conn.copy_in_raw(&copy_stmt).await?;
+
+        loop {
+            let n = f.read(&mut buf).await?;
+            if n == 0 {
+                break;
+            }
+            copy_in.send(buf[..n].to_vec()).await?;
+        }
+
         copy_in.finish().await?;
         Ok(())
     }

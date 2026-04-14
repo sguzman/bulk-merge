@@ -66,3 +66,18 @@ Validate minimal invariants.
 Current checks:
 
 - row count of the resolved table is > 0
+
+### `bulk-merge libgen convert --kind <fiction|compact> --dump <path> [--out-dir <dir>]`
+
+Offline conversion mode:
+
+- converts a MySQL dump into intermediate `*.tsv` files (one per MySQL table)
+- writes `manifest.json` (schema + table defs) and `state.json` (byte offset) for resumability
+- can be resumed by re-running the same command with the same `--out-dir`
+
+### `bulk-merge libgen load --in-dir <dir>`
+
+Offline load mode:
+
+- reads `manifest.json` and loads the `*.tsv` files into Postgres via `COPY FROM STDIN`
+- creates post-load indexes after bulk insert when `postgres.indexing.create_after_load = true`

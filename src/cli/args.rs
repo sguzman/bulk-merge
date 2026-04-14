@@ -80,6 +80,28 @@ pub enum LibgenCommand {
         #[arg(long)]
         mysql_table: String,
     },
+    /// Offline: convert dump to intermediate TSV files (resumable)
+    Convert {
+        #[arg(long)]
+        kind: LibgenDumpKindArg,
+        #[arg(long)]
+        dump: String,
+        /// Output directory for intermediate TSV files (defaults to `libgen.offline.out_dir_default`)
+        #[arg(long)]
+        out_dir: Option<String>,
+    },
+    /// Offline: load intermediate TSV files into PostgreSQL using COPY
+    Load {
+        /// Directory containing `manifest.json` + `*.tsv` files
+        #[arg(long)]
+        in_dir: String,
+        /// Stable dataset identifier for resumability/incrementals (defaults to config if present)
+        #[arg(long)]
+        dataset_id: Option<String>,
+        /// Optional dataset version label for this import run
+        #[arg(long)]
+        dataset_version: Option<String>,
+    },
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy)]

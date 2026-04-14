@@ -2,6 +2,7 @@ use crate::cli::Args;
 use crate::config::{AppConfig, LibgenDumpKind};
 use crate::db::{Db, ImportRunStatus};
 use crate::libgen::ingest::{ingest_dump_rows, IngestMode, IngestPlan};
+use crate::libgen::offline::{convert_dump_to_tsv, load_tsv_into_postgres, OfflineManifest};
 use crate::libgen::provision::provision_tables_from_dump;
 use crate::output::maybe_write_report_line;
 use anyhow::Context as _;
@@ -346,5 +347,88 @@ pub async fn validate(config: &AppConfig, kind: LibgenDumpKind, mysql_table: &st
         "libgen_validate",
         &serde_json::json!({ "table": table, "rows": count, "ok": true }),
     )?;
+    Ok(())
+}
+
+#[instrument(skip_all, fields(kind = ?kind, dump = %dump))]
+pub async fn offline_convert(
+    args: &Args,
+    config: &AppConfig,
+    kind: LibgenDumpKind,
+    dump: String,
+    out_dir: Option<String>,
+) -> anyhow::Result<()> {
+    let out_dir = out_dir.unwrap_or_else(|| config.libgen.offline.out_dir_default.clone());
+    if args.dry_run || config.execution.dry_run_default {
+        info!(%out_dir, "dry-run: would convert dump to offline TSV");
+        return Ok(());
+    }
+
+    let manifest = convert_dump_to_tsv(config, kind, &dump, &out_dir)?;
+    info!(tables = manifest.tables.len(), %out_dir, "offline conversion completed");
+    Ok(())
+}
+
+#[instrument(skip_all, fields(in_dir = %in_dir))]
+pub async fn offline_load(
+    args: &Args,
+    config: &AppConfig,
+    in_dir: String,
+    dataset_id: Option<String>,
+    dataset_version: Option<String>,
+) -> anyhow::Result<()> {
+    let bytes =
+        std::fs::read(std::path::Path::new(&in_dir).join("manifest.json")).context("missing manifest.json")?;
+    let manifest: OfflineManifest = serde_json::from_slice(&bytes).context("failed parsing manifest.json")?;
+
+    let kind = match manifest.kind.as_str() {
+        "fiction" => LibgenDumpKind::Fiction,
+        "compact" => LibgenDumpKind::Compact,
+        other => anyhow::bail!("unknown manifest kind `{other}` (expected `fiction` or `compact`)"),
+    };
+
+    if args.dry_run || config.execution.dry_run_default {
+        info!(kind = %manifest.kind, schema = %manifest.schema, "dry-run: would load offline TSV into Postgres");
+        return Ok(());
+    }
+
+    let db = Db::connect(config).await?;
+    db.migrate().await?;
+
+    let dataset_id = dataset_id
+        .or_else(|| config.libgen.dump.dataset_id.clone())
+        .unwrap_or_else(|| format!("libgen-{kind:?}"));
+
+    let run_id = db
+        .create_import_run(
+            "libgen",
+            &dataset_id,
+            dataset_version.as_deref(),
+            ImportRunStatus::InProgress,
+            kind,
+            &manifest.dump_path,
+            config,
+        )
+        .await
+        .context("failed to create bm_meta.import_run")?;
+
+    load_tsv_into_postgres(&db, config, &in_dir)
+        .await
+        .context("failed loading offline TSV into Postgres")?;
+
+    db.finish_import_run(run_id, ImportRunStatus::Succeeded)
+        .await
+        .context("failed to update import run status")?;
+
+    db.upsert_dataset_state(
+        "libgen",
+        &dataset_id,
+        manifest.kind.as_str(),
+        run_id,
+        dataset_version.as_deref(),
+    )
+    .await
+    .context("failed updating bm_meta.dataset_state")?;
+
     Ok(())
 }

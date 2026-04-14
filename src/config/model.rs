@@ -147,6 +147,10 @@ impl AppConfig {
             errors.push("execution.memory_hard_limit_bytes must be > 0".to_string());
         }
 
+        if self.execution.copy.file_send_chunk_bytes == 0 {
+            errors.push("execution.copy.file_send_chunk_bytes must be > 0".to_string());
+        }
+
         if self.libgen.dump.max_statement_bytes == 0 {
             errors.push("libgen.dump.max_statement_bytes must be > 0".to_string());
         }
@@ -324,6 +328,8 @@ pub struct ExecutionConfig {
     #[serde(default)]
     pub loader: LoaderConfig,
     #[serde(default)]
+    pub copy: CopyConfig,
+    #[serde(default)]
     pub batch: BatchConfig,
     #[serde(default)]
     pub retry: RetryConfig,
@@ -354,6 +360,7 @@ impl Default for ExecutionConfig {
             concurrency: default_concurrency(),
             memory_hard_limit_bytes: default_execution_memory_hard_limit_bytes(),
             loader: LoaderConfig::default(),
+            copy: CopyConfig::default(),
             batch: BatchConfig::default(),
             retry: RetryConfig::default(),
         }
@@ -391,6 +398,24 @@ fn default_loader_kind() -> LoaderKind {
 pub enum LoaderKind {
     Copy,
     Insert,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CopyConfig {
+    #[serde(default = "default_copy_file_send_chunk_bytes")]
+    pub file_send_chunk_bytes: u64,
+}
+
+impl Default for CopyConfig {
+    fn default() -> Self {
+        Self {
+            file_send_chunk_bytes: default_copy_file_send_chunk_bytes(),
+        }
+    }
+}
+
+fn default_copy_file_send_chunk_bytes() -> u64 {
+    1_048_576
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -500,11 +525,31 @@ pub struct LibgenConfig {
     #[serde(default)]
     pub tables: LibgenTablesConfig,
     #[serde(default)]
+    pub offline: LibgenOfflineConfig,
+    #[serde(default)]
     pub resume: LibgenResumeConfig,
     #[serde(default)]
     pub incremental: LibgenIncrementalConfig,
     #[serde(default)]
     pub raw: LibgenRawConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LibgenOfflineConfig {
+    #[serde(default = "default_libgen_offline_out_dir")]
+    pub out_dir_default: String,
+}
+
+impl Default for LibgenOfflineConfig {
+    fn default() -> Self {
+        Self {
+            out_dir_default: default_libgen_offline_out_dir(),
+        }
+    }
+}
+
+fn default_libgen_offline_out_dir() -> String {
+    "tmp/libgen-offline".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize)]

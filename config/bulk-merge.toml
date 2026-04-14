@@ -40,6 +40,10 @@ memory_hard_limit_bytes = 536_870_912
 [execution.loader]
 kind = "copy" # "copy" | "insert"
 
+[execution.copy]
+# When loading intermediate TSV files, stream bytes to Postgres COPY in chunks of this size.
+file_send_chunk_bytes = 1_048_576
+
 [execution.batch]
 max_rows = 25_000
 max_bytes = 64_000_000
@@ -67,6 +71,9 @@ max_statement_bytes = 16_000_000
 [libgen.tables]
 fiction_prefix = "fiction_"
 compact_prefix = "compact_"
+
+[libgen.offline]
+out_dir_default = "tmp/libgen-offline"
 
 [libgen.resume]
 enabled = true

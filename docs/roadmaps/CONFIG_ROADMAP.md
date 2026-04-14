@@ -42,6 +42,7 @@ vary across environments should be expressed here rather than hardcoded.
 - [x] `execution.concurrency` (bounds and defaults for parsing/loading).
 - [x] `execution.memory_hard_limit_bytes` (global memory guardrail).
 - [x] `execution.loader.kind` (`copy`|`insert`).
+- [x] `execution.copy.file_send_chunk_bytes` (chunk size when streaming intermediate files into `COPY FROM STDIN`).
 - [x] `execution.batch.max_rows` (for COPY/flush boundaries).
 - [x] `execution.batch.max_bytes` (memory guardrail).
 - [x] `execution.retry.max_attempts`.
@@ -64,7 +65,9 @@ vary across environments should be expressed here rather than hardcoded.
 
 - [x] `libgen.tables.fiction.name` (or naming template).
 - [x] `libgen.tables.compact.name` (or naming template).
-- [ ] `libgen.tables.raw.name` (raw landing table name/template).
+- [x] `libgen.offline.out_dir_default` (default output directory for offline conversion artifacts).
+- [x] Document raw landing table name is fixed to `src_libgen.raw_statement` (migration-defined).
+- [ ] Make raw landing table name configurable (requires migration redesign / dynamic DDL strategy).
 
 ## LibGen Resumability & Checkpointing
 

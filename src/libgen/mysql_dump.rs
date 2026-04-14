@@ -1,13 +1,13 @@
 use crate::config::LibgenDumpKind;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ColumnDef {
     pub name: String,
     pub mysql_type: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TableDef {
     pub name: String,
     pub columns: Vec<ColumnDef>,

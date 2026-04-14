@@ -51,6 +51,14 @@ pub async fn dispatch(args: Args, config: AppConfig) -> anyhow::Result<()> {
             LibgenCommand::Validate { kind, mysql_table } => {
                 libgen::validate(&config, kind.into(), &mysql_table).await
             }
+            LibgenCommand::Convert { kind, dump, out_dir } => {
+                libgen::offline_convert(&args, &config, kind.into(), dump, out_dir).await
+            }
+            LibgenCommand::Load {
+                in_dir,
+                dataset_id,
+                dataset_version,
+            } => libgen::offline_load(&args, &config, in_dir, dataset_id, dataset_version).await,
         },
     }
 }

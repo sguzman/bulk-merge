@@ -54,6 +54,11 @@ Environment overrides:
 - `execution.memory_hard_limit_bytes`: global memory guardrail for long-running ingestion steps.
 - `execution.batch.max_rows` / `execution.batch.max_bytes`: bounded buffering thresholds for batch writes.
 - `execution.loader.kind`: `copy|insert` (ingest path; update uses upsert).
+- `execution.copy.file_send_chunk_bytes`: chunk size used when streaming intermediate TSV files into `COPY FROM STDIN`.
+
+## LibGen offline mode (intermediate TSV)
+
+- `libgen.offline.out_dir_default`: default directory for `bulk-merge libgen convert` output (`manifest.json`, `state.json`, `*.tsv`).
 
 ## LibGen incremental strategy
 
@@ -62,6 +67,11 @@ Environment overrides:
 - `libgen.incremental.row_hash.enabled`: when enabled with `strategy="row_hash"`, adds `_bm_row_hash` to provisioned tables and de-dupes by row hash
 
 Note: `row_hash` provides idempotent ingestion/de-duplication, but it does not model “updates” unless the source provides stable keys.
+
+## LibGen raw landing (provenance)
+
+- Raw statements are stored in `src_libgen.raw_statement` when `libgen.raw.enabled = true`.
+- This table name is currently migration-defined (not yet configurable via TOML).
 
 ## Output reporting
 

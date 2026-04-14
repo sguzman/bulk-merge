@@ -54,10 +54,10 @@ Scope notes:
 
 ## Offline Conversion Path (Intermediate Artifact + COPY)
 
-- [ ] Convert MySQL dump → normalized intermediate format (choose one: TSV/CSV/JSONL; document choice).
-- [ ] Load intermediate into Postgres using `COPY` (fast path).
-- [ ] Resumability: checkpoints allow restarting without reprocessing completed regions.
-- [ ] Create indexes only after bulk insert finishes (post-load indexing) to maximize ingest speed.
+- [x] Convert MySQL dump → normalized intermediate format (TSV; documented choice).
+- [x] Load intermediate into Postgres using `COPY` (fast path).
+- [x] Resumability: checkpoints allow restarting without reprocessing completed regions.
+- [x] Create indexes only after bulk insert finishes (post-load indexing) to maximize ingest speed.
 
 ## Streaming Ingestion Path (No Intermediate Files)
 
