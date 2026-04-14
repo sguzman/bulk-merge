@@ -42,7 +42,7 @@ pub async fn dispatch(args: Args, config: AppConfig) -> anyhow::Result<()> {
                 dataset_version,
             )
             .await,
-            LibgenCommand::Stats => libgen::placeholder(&config, "stats").await,
+            LibgenCommand::Stats => libgen::stats(&config).await,
             LibgenCommand::Sample {
                 kind,
                 mysql_table,

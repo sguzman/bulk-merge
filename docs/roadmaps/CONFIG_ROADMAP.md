@@ -40,6 +40,7 @@ vary across environments should be expressed here rather than hardcoded.
 
 - [x] `execution.dry_run_default` (default false; overridable by CLI).
 - [x] `execution.concurrency` (bounds and defaults for parsing/loading).
+- [x] `execution.memory_hard_limit_bytes` (global memory guardrail).
 - [x] `execution.batch.max_rows` (for COPY/flush boundaries).
 - [x] `execution.batch.max_bytes` (memory guardrail).
 - [x] `execution.retry.max_attempts`.

@@ -39,6 +39,14 @@ Phase 1 current behavior:
 
 Incremental row-level updates are not implemented yet.
 
+### `bulk-merge libgen stats`
+
+Print counts and recent import run metadata:
+
+- number of provisioned tables per kind (by prefix)
+- last 5 `bm_meta.import_run` entries for `source_name = 'libgen'`
+- raw statement count for each run
+
 ### `bulk-merge libgen sample --kind <fiction|compact> --mysql-table <name> [--limit <n>]`
 
 Sample rows from an ingested table.

@@ -44,3 +44,8 @@ Environment overrides:
 ## Progress logging (long-running operations)
 
 - `progress.log_interval_seconds`: emits periodic progress logs for long-running operations when total work is known (e.g., file byte offsets).
+
+## Execution limits
+
+- `execution.memory_hard_limit_bytes`: global memory guardrail for long-running ingestion steps.
+- `execution.batch.max_rows` / `execution.batch.max_bytes`: bounded buffering thresholds for batch writes.

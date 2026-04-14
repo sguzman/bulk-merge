@@ -99,11 +99,56 @@ pub async fn register_run(
     Ok(())
 }
 
-#[instrument(skip_all, fields(op = %op))]
-pub async fn placeholder(config: &AppConfig, op: &str) -> anyhow::Result<()> {
+#[instrument(skip_all)]
+pub async fn stats(config: &AppConfig) -> anyhow::Result<()> {
     let db = Db::connect(config).await?;
     db.migrate().await?;
-    info!(%op, "not implemented yet (Phase 1: LibGen ingestion in progress)");
+
+    let fiction_prefix = format!(
+        "{}{}",
+        config.postgres.table_prefix.as_deref().unwrap_or(""),
+        config.libgen.tables.fiction_prefix
+    );
+    let compact_prefix = format!(
+        "{}{}",
+        config.postgres.table_prefix.as_deref().unwrap_or(""),
+        config.libgen.tables.compact_prefix
+    );
+
+    let fiction_tables = db
+        .list_tables_with_prefix(&config.postgres.schema_libgen, &fiction_prefix)
+        .await
+        .context("failed listing fiction tables")?;
+    let compact_tables = db
+        .list_tables_with_prefix(&config.postgres.schema_libgen, &compact_prefix)
+        .await
+        .context("failed listing compact tables")?;
+
+    info!(
+        fiction_tables = fiction_tables.len(),
+        compact_tables = compact_tables.len(),
+        "libgen table stats"
+    );
+
+    let runs = db.recent_import_runs("libgen", 5).await?;
+    if runs.is_empty() {
+        info!("no import runs found");
+        return Ok(());
+    }
+
+    for (id, dataset_id, dataset_version, status, started_at) in runs {
+        let raw_count = db.raw_statement_count(id).await.unwrap_or(0);
+        info!(
+            import_run_id = id,
+            dataset_id = dataset_id,
+            dataset_version = dataset_version.as_deref().unwrap_or(""),
+            status = status,
+            started_at = %started_at,
+            raw_statements = raw_count,
+            "recent import run"
+        );
+    }
+
     Ok(())
 }
 

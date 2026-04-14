@@ -34,6 +34,7 @@ include_location = false
 [execution]
 dry_run_default = false
 concurrency = 2
+memory_hard_limit_bytes = 536_870_912
 
 [execution.batch]
 max_rows = 25_000

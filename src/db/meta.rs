@@ -417,6 +417,44 @@ order by table_name
         let recs: Vec<(serde_json::Value,)> = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
         Ok(recs.into_iter().map(|r| r.0).collect())
     }
+
+    #[instrument(skip_all)]
+    pub async fn recent_import_runs(
+        &self,
+        source_name: &str,
+        limit: u32,
+    ) -> anyhow::Result<Vec<(i64, String, Option<String>, String, chrono::DateTime<chrono::Utc>)>> {
+        let recs: Vec<(i64, String, Option<String>, String, chrono::DateTime<chrono::Utc>)> =
+            sqlx::query_as(
+                r#"
+select id, dataset_id, dataset_version, status, started_at
+from bm_meta.import_run
+where source_name = $1
+order by started_at desc
+limit $2
+"#,
+            )
+            .bind(source_name)
+            .bind(limit as i64)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(recs)
+    }
+
+    #[instrument(skip_all, fields(import_run_id = import_run_id))]
+    pub async fn raw_statement_count(&self, import_run_id: i64) -> anyhow::Result<i64> {
+        let rec: (i64,) = sqlx::query_as(
+            r#"
+select count(*)::bigint
+from src_libgen.raw_statement
+where import_run_id = $1
+"#,
+        )
+        .bind(import_run_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(rec.0)
+    }
 }
 
 fn quote_ident(ident: &str) -> String {

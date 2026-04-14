@@ -119,6 +119,10 @@ impl AppConfig {
             errors.push("execution.batch.max_bytes must be > 0".to_string());
         }
 
+        if self.execution.memory_hard_limit_bytes == 0 {
+            errors.push("execution.memory_hard_limit_bytes must be > 0".to_string());
+        }
+
         if self.libgen.dump.max_statement_bytes == 0 {
             errors.push("libgen.dump.max_statement_bytes must be > 0".to_string());
         }
@@ -283,6 +287,8 @@ pub struct ExecutionConfig {
     pub dry_run_default: bool,
     #[serde(default = "default_concurrency")]
     pub concurrency: u32,
+    #[serde(default = "default_execution_memory_hard_limit_bytes")]
+    pub memory_hard_limit_bytes: u64,
     #[serde(default)]
     pub batch: BatchConfig,
     #[serde(default)]
@@ -312,6 +318,7 @@ impl Default for ExecutionConfig {
         Self {
             dry_run_default: false,
             concurrency: default_concurrency(),
+            memory_hard_limit_bytes: default_execution_memory_hard_limit_bytes(),
             batch: BatchConfig::default(),
             retry: RetryConfig::default(),
         }
@@ -320,6 +327,10 @@ impl Default for ExecutionConfig {
 
 fn default_concurrency() -> u32 {
     2
+}
+
+fn default_execution_memory_hard_limit_bytes() -> u64 {
+    512 * 1024 * 1024
 }
 
 #[derive(Debug, Clone, Deserialize)]

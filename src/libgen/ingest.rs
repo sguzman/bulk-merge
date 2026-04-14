@@ -106,22 +106,40 @@ pub async fn ingest_dump_rows(
         let pg_table = plan.pg_table_for_mysql(&insert.table);
         let cols: Vec<String> = def.columns.iter().map(|c| c.name.clone()).collect();
 
-        let mut row_buf: Vec<Vec<Option<String>>> = Vec::new();
+        // Chunk large INSERT statements without buffering the entire INSERT in memory.
+        let batch_max_rows = config.execution.batch.max_rows.max(1) as usize;
+        let batch_max_bytes = config.execution.batch.max_bytes.max(1) as usize;
+        let mem_limit = config.execution.memory_hard_limit_bytes.max(1) as usize;
+
+        let mut chunk: Vec<Vec<Option<String>>> = Vec::with_capacity(batch_max_rows.min(1024));
+        let mut chunk_bytes: usize = 0;
+
         for row in insert.rows {
             let mut out_row: Vec<Option<String>> = Vec::with_capacity(row.len());
             for v in row {
                 match v {
                     Value::Null => out_row.push(None),
-                    Value::Text(s) => out_row.push(Some(s)),
+                    Value::Text(s) => {
+                        chunk_bytes = chunk_bytes.saturating_add(s.len());
+                        out_row.push(Some(s));
+                    }
                 }
             }
-            row_buf.push(out_row);
+            chunk.push(out_row);
+
+            if chunk.len() >= batch_max_rows || chunk_bytes >= batch_max_bytes || chunk_bytes >= mem_limit / 2
+            {
+                db.insert_rows_text(&config.postgres.schema_libgen, &pg_table, &cols, &chunk)
+                    .await
+                    .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                rows_loaded += chunk.len() as u64;
+                chunk.clear();
+                chunk_bytes = 0;
+            }
         }
 
-        // Chunk large INSERT statements to configured batch size.
-        let batch_max = config.execution.batch.max_rows.max(1) as usize;
-        for chunk in row_buf.chunks(batch_max) {
-            db.insert_rows_text(&config.postgres.schema_libgen, &pg_table, &cols, chunk)
+        if !chunk.is_empty() {
+            db.insert_rows_text(&config.postgres.schema_libgen, &pg_table, &cols, &chunk)
                 .await
                 .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
             rows_loaded += chunk.len() as u64;

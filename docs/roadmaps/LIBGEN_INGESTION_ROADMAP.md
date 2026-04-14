@@ -18,8 +18,7 @@ Scope notes:
 - [x] `bulk-merge libgen update ...` registers an `import_run` (Phase 1 scaffolding).
 - [x] `bulk-merge libgen update ...` provisions tables from dump schema (`CREATE TABLE` discovery).
 - [ ] `bulk-merge libgen update ...` applies an incremental row-level update from a newer dump.
-- [x] `bulk-merge libgen stats` command exists (placeholder).
-- [ ] `bulk-merge libgen stats` prints real counts and last-run info.
+- [x] `bulk-merge libgen stats` prints counts and last-run info.
 - [x] `bulk-merge libgen sample` prints a small sample of rows (Phase 1: JSON via `row_to_json`).
 - [x] `bulk-merge libgen validate` runs minimal invariants and reports failures (Phase 1: row count > 0).
 
@@ -64,7 +63,7 @@ Scope notes:
 
 - [x] Parse dump and feed batched loads directly to Postgres (batched multi-row INSERT for now).
 - [x] Resumability: checkpoints allow resuming from last processed offset/line.
-- [ ] Backpressure and bounded memory (`max_rows`/`max_bytes`).
+- [x] Backpressure and bounded memory (`max_rows`/`max_bytes` + `execution.memory_hard_limit_bytes`).
 - [x] Create indexes only after streaming ingest finishes (post-load indexing) to maximize ingest speed.
 
 ## Incremental Updates (Newer Dumps)
