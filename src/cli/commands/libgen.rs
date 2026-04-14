@@ -66,6 +66,32 @@ pub async fn register_run(
         .await
         .context("failed ingesting dump rows")?;
 
+    if config.postgres.indexing.create_after_load {
+        let main_fields = match kind {
+            LibgenDumpKind::Fiction => &config.postgres.indexing.main_fields.fiction,
+            LibgenDumpKind::Compact => &config.postgres.indexing.main_fields.compact,
+        };
+
+        if !main_fields.is_empty() {
+            info!(fields = main_fields.len(), "creating post-load indexes");
+            for def in &plan.table_defs {
+                let pg_table = plan.pg_table_for_mysql(&def.name);
+                for field in main_fields {
+                    if def.columns.iter().any(|c| c.name == *field) {
+                        db.ensure_btree_index(
+                            &config.postgres.schema_libgen,
+                            &pg_table,
+                            field,
+                            config.postgres.indexing.concurrent,
+                        )
+                        .await
+                        .with_context(|| format!("failed creating index for `{}`.`{}`", pg_table, field))?;
+                    }
+                }
+            }
+        }
+    }
+
     db.finish_import_run(run_id, ImportRunStatus::Pending)
         .await
         .context("failed to update import run status")?;

@@ -221,6 +221,16 @@ pub struct PostgresIndexingConfig {
     pub create_after_load: bool,
     #[serde(default)]
     pub concurrent: bool,
+    #[serde(default)]
+    pub main_fields: PostgresIndexMainFields,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct PostgresIndexMainFields {
+    #[serde(default)]
+    pub fiction: Vec<String>,
+    #[serde(default)]
+    pub compact: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

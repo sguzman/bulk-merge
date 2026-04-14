@@ -25,8 +25,9 @@ Phase 1 current behavior:
   under `src_libgen` using the configured per-kind prefixes
 - parses `INSERT INTO ... VALUES` and bulk-inserts rows into the provisioned tables (Phase 1: all columns stored as `text`)
 - writes resumability checkpoints (byte offset) in `bm_meta.import_checkpoint` when enabled
+- creates post-load indexes after ingest when `postgres.indexing.create_after_load = true`
 
-COPY-based loading and post-load index creation are not implemented yet.
+COPY-based loading is not implemented yet.
 
 ### `bulk-merge libgen update --kind <fiction|compact> --dump <path>`
 

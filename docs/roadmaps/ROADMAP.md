@@ -52,7 +52,7 @@ framework.
 - [x] Implement streaming ingestion path: dump → batched Postgres load (batched INSERT for now; COPY pending).
 - [ ] Implement per-dump-type schema isolation: dedicated tables for `fiction` and `compact` dumps.
 - [x] Map MySQL fields 1-to-1 into Postgres columns (Phase 1: store as `text`).
-- [ ] Create indexes only after bulk loads finish (post-load indexing) to maximize ingest speed.
+- [x] Create indexes only after bulk loads finish (post-load indexing) to maximize ingest speed.
 - [x] Implement resumable import with checkpoints (byte-offset) in `bm_meta.import_checkpoint`.
 - [ ] Implement `ingest libgen` command that accepts either dump type and provisions tables automatically.
 - [ ] Implement `update libgen` (incremental) command to ingest a newer dump and apply changes incrementally.

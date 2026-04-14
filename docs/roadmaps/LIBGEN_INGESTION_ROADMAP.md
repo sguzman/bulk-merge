@@ -37,7 +37,7 @@ Scope notes:
 
 - [x] Migrations for `bm_meta.import_run`, `bm_meta.import_file`, `bm_meta.import_checkpoint`.
 - [x] Every ingest/update creates an `import_run` row with config snapshot (Phase 1 scaffolding).
-- [ ] Per-file accounting tracks progress (bytes/records/offsets) and supports resume.
+- [x] Per-file accounting tracks progress (bytes/records/offsets) and supports resume.
 
 ## Table Provisioning (Dedicated Tables per Kind)
 
@@ -67,7 +67,7 @@ Scope notes:
 - [x] Parse dump and feed batched loads directly to Postgres (batched multi-row INSERT for now).
 - [x] Resumability: checkpoints allow resuming from last processed offset/line.
 - [ ] Backpressure and bounded memory (`max_rows`/`max_bytes`).
-- [ ] Create indexes only after streaming ingest finishes (post-load indexing) to maximize ingest speed.
+- [x] Create indexes only after streaming ingest finishes (post-load indexing) to maximize ingest speed.
 
 ## Incremental Updates (Newer Dumps)
 

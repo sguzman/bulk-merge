@@ -34,6 +34,11 @@ pub async fn ingest_dump_rows(
 
     let mut file = std::fs::File::open(&plan.dump_path)
         .with_context(|| format!("failed to open dump file `{}`", plan.dump_path))?;
+    let size_bytes = file.metadata().ok().map(|m| m.len() as i64);
+    let import_file_id = db
+        .upsert_import_file(import_run_id, &plan.dump_path, size_bytes, "in_progress")
+        .await
+        .context("failed to upsert bm_meta.import_file")?;
 
     let checkpoint_key = format!("libgen:{}:{}", format!("{:?}", plan.kind).to_lowercase(), plan.dump_path);
     let start_offset = if config.libgen.resume.enabled {
@@ -50,9 +55,11 @@ pub async fn ingest_dump_rows(
         seek_to_offset(&mut file, start_offset).context("failed to seek dump file")?;
     }
 
-    let mut stmt_reader = StatementReader::new(file, config.libgen.dump.max_statement_bytes);
+    let mut stmt_reader =
+        StatementReader::new_with_offset(file, config.libgen.dump.max_statement_bytes, start_offset);
 
     let mut rows_loaded: u64 = 0;
+    let mut rows_seen: u64 = 0;
     while let Some(stmt) = stmt_reader
         .next_statement()
         .context("failed reading statement")?
@@ -60,6 +67,7 @@ pub async fn ingest_dump_rows(
         let Some(insert) = parse_insert_into(&stmt).context("failed parsing INSERT INTO")? else {
             continue;
         };
+        rows_seen += insert.rows.len() as u64;
 
         let Some(def) = table_map.get(&insert.table) else {
             // Some dumps may include tables we didn't provision (or we skipped). Ignore for now.
@@ -95,10 +103,28 @@ pub async fn ingest_dump_rows(
             db.set_checkpoint_offset(import_run_id, &checkpoint_key, off)
                 .await
                 .context("failed updating checkpoint")?;
+            db.update_import_file_progress(
+                import_file_id,
+                off as i64,
+                rows_seen as i64,
+                rows_loaded as i64,
+                "in_progress",
+            )
+            .await
+            .context("failed updating import_file progress")?;
         }
     }
+
+    db.update_import_file_progress(
+        import_file_id,
+        stmt_reader.offset() as i64,
+        rows_seen as i64,
+        rows_loaded as i64,
+        "succeeded",
+    )
+    .await
+    .context("failed finalizing import_file progress")?;
 
     info!(rows_loaded, "ingest completed");
     Ok(())
 }
-

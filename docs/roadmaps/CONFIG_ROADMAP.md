@@ -34,7 +34,7 @@ vary across environments should be expressed here rather than hardcoded.
 
 - [x] `postgres.indexing.create_after_load` (bool; default true).
 - [x] `postgres.indexing.concurrent` (bool; optional, for post-load index creation).
-- [ ] `postgres.indexing.main_fields` (per dump kind list of columns to index for quick search).
+- [x] `postgres.indexing.main_fields` (per dump kind list of columns to index for quick search).
 
 ## Import Execution Policy
 

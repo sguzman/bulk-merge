@@ -70,3 +70,4 @@ apply_deletes = false
 [postgres.indexing]
 create_after_load = true
 concurrent = false
+main_fields = { fiction = ["Title", "Author", "ISBN", "MD5"], compact = ["Title", "Author", "ISBN", "MD5"] }

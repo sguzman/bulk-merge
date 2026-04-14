@@ -90,6 +90,64 @@ returning id
         Ok(rec.0)
     }
 
+    #[instrument(skip_all, fields(import_run_id = import_run_id, path = %path))]
+    pub async fn upsert_import_file(
+        &self,
+        import_run_id: i64,
+        path: &str,
+        size_bytes: Option<i64>,
+        status: &str,
+    ) -> anyhow::Result<i64> {
+        let rec: (i64,) = sqlx::query_as(
+            r#"
+insert into bm_meta.import_file (import_run_id, path, size_bytes, status)
+values ($1, $2, $3, $4)
+on conflict (import_run_id, path)
+do update set
+  size_bytes = coalesce(excluded.size_bytes, bm_meta.import_file.size_bytes),
+  status = excluded.status
+returning id
+"#,
+        )
+        .bind(import_run_id)
+        .bind(path)
+        .bind(size_bytes)
+        .bind(status)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(rec.0)
+    }
+
+    #[instrument(skip_all, fields(import_file_id = import_file_id, offset = offset, seen = records_seen, loaded = records_loaded))]
+    pub async fn update_import_file_progress(
+        &self,
+        import_file_id: i64,
+        offset: i64,
+        records_seen: i64,
+        records_loaded: i64,
+        status: &str,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            r#"
+update bm_meta.import_file
+set last_offset = $2,
+    records_seen = $3,
+    records_loaded = $4,
+    status = $5
+where id = $1
+"#,
+        )
+        .bind(import_file_id)
+        .bind(offset)
+        .bind(records_seen)
+        .bind(records_loaded)
+        .bind(status)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     #[instrument(skip_all, fields(import_run_id = import_run_id, status = status.as_str()))]
     pub async fn finish_import_run(
         &self,
@@ -228,6 +286,58 @@ where import_run_id = $1 and checkpoint_key = $2
             .and_then(|v| v.as_u64())
             .unwrap_or(0);
         Ok(Some(offset))
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, column = column, concurrent = concurrent))]
+    pub async fn ensure_btree_index(
+        &self,
+        schema: &str,
+        table: &str,
+        column: &str,
+        concurrent: bool,
+    ) -> anyhow::Result<()> {
+        let index_name = format!("idx_{}_{}", table, column);
+        if concurrent {
+            if self.index_exists(schema, &index_name).await.unwrap_or(false) {
+                return Ok(());
+            }
+            let schema_q = quote_ident(schema);
+            let table_q = quote_ident(table);
+            let col_q = quote_ident(column);
+            let idx_q = quote_ident(&index_name);
+            let sql = format!(
+                "create index concurrently {idx_q} on {schema_q}.{table_q} ({col_q})"
+            );
+            sqlx::query(&sql).execute(&self.pool).await?;
+            return Ok(());
+        }
+
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let col_q = quote_ident(column);
+        let idx_q = quote_ident(&index_name);
+        let sql = format!(
+            "create index if not exists {idx_q} on {schema_q}.{table_q} ({col_q})"
+        );
+        sqlx::query(&sql).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, index = index))]
+    pub async fn index_exists(&self, schema: &str, index: &str) -> anyhow::Result<bool> {
+        let rec: Option<(i64,)> = sqlx::query_as(
+            r#"
+select 1
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where c.relkind = 'i' and n.nspname = $1 and c.relname = $2
+"#,
+        )
+        .bind(schema)
+        .bind(index)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(rec.is_some())
     }
 }
 

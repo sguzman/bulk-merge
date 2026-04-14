@@ -34,10 +34,14 @@ pub struct StatementReader<R> {
 
 impl<R: Read> StatementReader<R> {
     pub fn new(inner: R, max_statement_bytes: u64) -> Self {
+        Self::new_with_offset(inner, max_statement_bytes, 0)
+    }
+
+    pub fn new_with_offset(inner: R, max_statement_bytes: u64, initial_offset: u64) -> Self {
         Self {
             reader: BufReader::new(inner),
             max_statement_bytes,
-            offset: 0,
+            offset: initial_offset,
             buf: Vec::with_capacity(1024 * 64),
             in_single_quote: false,
             prev_was_backslash: false,
@@ -579,5 +583,17 @@ CREATE TABLE `fiction` (
         assert_eq!(ins.rows[0][1], Value::Text("hi".to_string()));
         assert_eq!(ins.rows[0][2], Value::Null);
         assert_eq!(ins.rows[1][1], Value::Text("a'b".to_string()));
+    }
+
+    #[test]
+    fn statement_reader_emits_statements() {
+        let input = b"CREATE TABLE `t` (`a` int);\nINSERT INTO `t` VALUES (1,'x');\n";
+        let mut r = StatementReader::new(&input[..], 10_000);
+        let s1 = r.next_statement().unwrap().unwrap();
+        assert!(s1.to_ascii_uppercase().starts_with("CREATE TABLE"));
+        let s2 = r.next_statement().unwrap().unwrap();
+        assert!(s2.to_ascii_uppercase().starts_with("INSERT INTO"));
+        let s3 = r.next_statement().unwrap();
+        assert!(s3.is_none());
     }
 }
