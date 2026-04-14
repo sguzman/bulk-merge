@@ -58,6 +58,8 @@ Scope notes:
 - [x] Load intermediate into Postgres using `COPY` (fast path).
 - [x] Resumability: checkpoints allow restarting without reprocessing completed regions.
 - [x] Create indexes only after bulk insert finishes (post-load indexing) to maximize ingest speed.
+- [ ] Offline load resumability: restart-safe loads without manual cleanup (choose and implement one strategy: staging schema + swap, truncate-and-reload with run scoping, or per-table checkpoints with dedupe/upsert).
+- [ ] Cache policy: all on-disk intermediate artifacts and temp outputs default under `./.cache/bulk-merge/` (configurable root).
 
 ## Streaming Ingestion Path (No Intermediate Files)
 

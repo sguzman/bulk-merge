@@ -9,6 +9,10 @@ vary across environments should be expressed here rather than hardcoded.
 - [x] Create a canonical config file at `config/bulk-merge.toml`.
 - [ ] Define and document full config schema in `docs/config.md` (tables + examples).
 
+## Paths & Cache Policy
+
+- [ ] `paths.cache_dir` (default `./.cache/bulk-merge`; used as base for intermediate artifacts and temp outputs).
+
 ## Logging & Observability
 
 - [x] `logging.level` (default and per-module overrides).
