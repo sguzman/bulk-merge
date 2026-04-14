@@ -8,11 +8,23 @@ policies, and ingest tuning knobs (batch sizes, concurrency, retries, etc.).
 
 Minimum required:
 
-- `postgres.url`: `postgresql://user:password@host:port/dbname`
+- Either a full URL:
+  - `postgres.url`: `postgresql://user:password@host:port/dbname`
+- Or discrete connection properties:
+  - `postgres.host`
+  - `postgres.port`
+  - `postgres.user`
+  - `postgres.password`
+  - `postgres.database`
 
 Environment overrides:
 
 - `BULK_MERGE_POSTGRES_URL`
+- `BULK_MERGE_POSTGRES_HOST`
+- `BULK_MERGE_POSTGRES_PORT`
+- `BULK_MERGE_POSTGRES_USER`
+- `BULK_MERGE_POSTGRES_PASSWORD`
+- `BULK_MERGE_POSTGRES_DATABASE`
 
 Schemas used by the project:
 

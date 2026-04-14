@@ -3,9 +3,16 @@
 # Default values are set for the provided `tmp/docker-compose.yaml` Postgres instance.
 
 [postgres]
-# Includes credentials/host/db. For the docker-compose in `tmp/`, the port is published
-# to the host, so `127.0.0.1:5432` is correct when running the CLI on the host.
-url = "postgresql://admin:admin@127.0.0.1:5432/data"
+# For the docker-compose in `tmp/docker-compose.yaml`, the port is published to the host,
+# so `127.0.0.1:5432` is correct when running the CLI on the host.
+host = "127.0.0.1"
+port = 5432
+user = "admin"
+password = "admin"
+database = "data"
+
+# Optional: set a full URL instead of host/port/user/password/database.
+# url = "postgresql://admin:admin@127.0.0.1:5432/data"
 
 # These schemas are created by `bulk-merge init-db`.
 schema_meta = "bm_meta"

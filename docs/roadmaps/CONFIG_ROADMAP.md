@@ -17,7 +17,8 @@ vary across environments should be expressed here rather than hardcoded.
 
 ## PostgreSQL Target (Connection + Namespacing)
 
-- [x] `postgres.url` (connection string including credentials/host/db).
+- [x] `postgres.url` optional override (connection string including credentials/host/db).
+- [x] `postgres.host` / `postgres.port` / `postgres.user` / `postgres.password` / `postgres.database`.
 - [ ] `postgres.statement_timeout_ms`.
 - [x] `postgres.schema_meta` (default `bm_meta`).
 - [x] `postgres.schema_libgen` (default `src_libgen`).

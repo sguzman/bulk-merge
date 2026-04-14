@@ -25,7 +25,35 @@ impl AppConfig {
     fn apply_env_overrides(&mut self) {
         if let Ok(url) = std::env::var("BULK_MERGE_POSTGRES_URL") {
             if !url.trim().is_empty() {
-                self.postgres.url = url;
+                self.postgres.url = Some(url);
+            }
+        }
+
+        if let Ok(host) = std::env::var("BULK_MERGE_POSTGRES_HOST") {
+            if !host.trim().is_empty() {
+                self.postgres.host = Some(host);
+            }
+        }
+
+        if let Ok(port) = std::env::var("BULK_MERGE_POSTGRES_PORT") {
+            if let Ok(port) = port.trim().parse::<u16>() {
+                self.postgres.port = Some(port);
+            }
+        }
+
+        if let Ok(user) = std::env::var("BULK_MERGE_POSTGRES_USER") {
+            if !user.trim().is_empty() {
+                self.postgres.user = Some(user);
+            }
+        }
+
+        if let Ok(password) = std::env::var("BULK_MERGE_POSTGRES_PASSWORD") {
+            self.postgres.password = Some(password);
+        }
+
+        if let Ok(db) = std::env::var("BULK_MERGE_POSTGRES_DATABASE") {
+            if !db.trim().is_empty() {
+                self.postgres.database = Some(db);
             }
         }
 
@@ -47,8 +75,22 @@ impl AppConfig {
     pub fn validate(&self) -> anyhow::Result<()> {
         let mut errors: Vec<String> = Vec::new();
 
-        if self.postgres.url.trim().is_empty() {
-            errors.push("postgres.url must not be empty".to_string());
+        if self.postgres.url.is_none() {
+            if self.postgres.host.as_deref().unwrap_or("").trim().is_empty() {
+                errors.push("postgres.host must not be empty (or set postgres.url)".to_string());
+            }
+            if self.postgres.port.is_none() {
+                errors.push("postgres.port must be set (or set postgres.url)".to_string());
+            }
+            if self.postgres.user.as_deref().unwrap_or("").trim().is_empty() {
+                errors.push("postgres.user must not be empty (or set postgres.url)".to_string());
+            }
+            if self.postgres.password.as_deref().unwrap_or("").trim().is_empty() {
+                errors.push("postgres.password must not be empty (or set postgres.url)".to_string());
+            }
+            if self.postgres.database.as_deref().unwrap_or("").trim().is_empty() {
+                errors.push("postgres.database must not be empty (or set postgres.url)".to_string());
+            }
         }
 
         if self.postgres.schema_meta.trim().is_empty() {
@@ -89,7 +131,18 @@ impl AppConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PostgresConfig {
-    pub url: String,
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub host: Option<String>,
+    #[serde(default)]
+    pub port: Option<u16>,
+    #[serde(default)]
+    pub user: Option<String>,
+    #[serde(default)]
+    pub password: Option<String>,
+    #[serde(default)]
+    pub database: Option<String>,
     #[serde(default = "default_schema_meta")]
     pub schema_meta: String,
     #[serde(default = "default_schema_libgen")]
@@ -100,6 +153,40 @@ pub struct PostgresConfig {
     pub pool: PostgresPoolConfig,
     #[serde(default)]
     pub indexing: PostgresIndexingConfig,
+}
+
+impl PostgresConfig {
+    pub fn connection_url(&self) -> anyhow::Result<String> {
+        if let Some(url) = &self.url {
+            return Ok(url.clone());
+        }
+        let host = self
+            .host
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("postgres.host must be set when postgres.url is not set"))?;
+        let port = self
+            .port
+            .ok_or_else(|| anyhow::anyhow!("postgres.port must be set when postgres.url is not set"))?;
+        let user = self
+            .user
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("postgres.user must be set when postgres.url is not set"))?;
+        let password = self.password.as_deref().ok_or_else(|| {
+            anyhow::anyhow!("postgres.password must be set when postgres.url is not set")
+        })?;
+        let database = self.database.as_deref().ok_or_else(|| {
+            anyhow::anyhow!("postgres.database must be set when postgres.url is not set")
+        })?;
+
+        Ok(format!(
+            "postgresql://{}:{}@{}:{}/{}",
+            urlencoding::encode(user),
+            urlencoding::encode(password),
+            host,
+            port,
+            database
+        ))
+    }
 }
 
 fn default_schema_meta() -> String {

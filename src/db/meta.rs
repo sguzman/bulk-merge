@@ -31,11 +31,12 @@ impl Db {
     #[instrument(skip_all)]
     pub async fn connect(config: &AppConfig) -> anyhow::Result<Self> {
         let acquire_timeout = Duration::from_millis(config.postgres.pool.acquire_timeout_ms);
+        let url = config.postgres.connection_url()?;
         let pool = PgPoolOptions::new()
             .max_connections(config.postgres.pool.max_connections)
             .min_connections(config.postgres.pool.min_connections)
             .acquire_timeout(acquire_timeout)
-            .connect(&config.postgres.url)
+            .connect(&url)
             .await
             .context("failed to connect to postgres")?;
 
