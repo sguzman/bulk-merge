@@ -46,6 +46,10 @@ vary across environments should be expressed here rather than hardcoded.
 - [x] `execution.retry.backoff_ms_initial`.
 - [x] `execution.retry.backoff_ms_max`.
 
+## Progress Logging
+
+- [x] `progress.log_interval_seconds` (periodic progress logs for long-running operations).
+
 ## LibGen Input & Parsing Policy
 
 - [x] `libgen.dump.kind` (`fiction` | `compact`).

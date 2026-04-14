@@ -22,6 +22,7 @@ framework.
 ## Logging & Error Handling
 
 - [x] Add structured logging via `tracing` + `tracing-subscriber` (configurable via TOML and CLI).
+- [x] Add periodic progress logging for long-running operations (configurable interval).
 - [x] Add `anyhow` for CLI/top-level error context.
 - [ ] Add `thiserror` domain error types (as LibGen parser/ingestion modules are implemented).
 

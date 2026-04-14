@@ -1,8 +1,10 @@
 use crate::config::{AppConfig, LibgenDumpKind};
 use crate::db::Db;
 use crate::libgen::mysql_dump::{parse_insert_into, seek_to_offset, StatementReader, TableDef, Value};
+use crate::progress::{ProgressConfig, ProgressTicker};
 use anyhow::Context as _;
 use std::collections::HashMap;
+use std::time::Duration;
 use tracing::{info, instrument};
 
 #[derive(Debug, Clone)]
@@ -58,12 +60,22 @@ pub async fn ingest_dump_rows(
     let mut stmt_reader =
         StatementReader::new_with_offset(file, config.libgen.dump.max_statement_bytes, start_offset);
 
+    let mut ticker = ProgressTicker::new(ProgressConfig {
+        log_interval: Duration::from_secs(config.progress.log_interval_seconds),
+    });
+
     let mut rows_loaded: u64 = 0;
     let mut rows_seen: u64 = 0;
     while let Some(stmt) = stmt_reader
         .next_statement()
         .context("failed reading statement")?
     {
+        let current_offset = stmt_reader.offset();
+        let total = size_bytes.and_then(|s| u64::try_from(s).ok());
+        ticker.maybe_log("libgen_ingest", current_offset, total, || {
+            info!(rows_seen, rows_loaded, offset = current_offset, "progress_detail");
+        });
+
         let Some(insert) = parse_insert_into(&stmt).context("failed parsing INSERT INTO")? else {
             continue;
         };

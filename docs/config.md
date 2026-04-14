@@ -40,3 +40,7 @@ Environment overrides:
 
 - `BULK_MERGE_LOG_LEVEL`
 - `BULK_MERGE_LOG_FORMAT` (`human|json`)
+
+## Progress logging (long-running operations)
+
+- `progress.log_interval_seconds`: emits periodic progress logs for long-running operations when total work is known (e.g., file byte offsets).

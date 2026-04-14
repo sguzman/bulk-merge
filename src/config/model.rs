@@ -8,6 +8,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub execution: ExecutionConfig,
     #[serde(default)]
+    pub progress: ProgressSection,
+    #[serde(default)]
     pub output: OutputConfig,
     #[serde(default)]
     pub libgen: LibgenConfig,
@@ -119,6 +121,10 @@ impl AppConfig {
 
         if self.libgen.dump.max_statement_bytes == 0 {
             errors.push("libgen.dump.max_statement_bytes must be > 0".to_string());
+        }
+
+        if self.progress.log_interval_seconds == 0 {
+            errors.push("progress.log_interval_seconds must be > 0".to_string());
         }
 
         if errors.is_empty() {
@@ -281,6 +287,24 @@ pub struct ExecutionConfig {
     pub batch: BatchConfig,
     #[serde(default)]
     pub retry: RetryConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProgressSection {
+    #[serde(default = "default_progress_log_interval_seconds")]
+    pub log_interval_seconds: u64,
+}
+
+impl Default for ProgressSection {
+    fn default() -> Self {
+        Self {
+            log_interval_seconds: default_progress_log_interval_seconds(),
+        }
+    }
+}
+
+fn default_progress_log_interval_seconds() -> u64 {
+    30
 }
 
 impl Default for ExecutionConfig {

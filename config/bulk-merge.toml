@@ -44,6 +44,9 @@ max_attempts = 3
 backoff_ms_initial = 250
 backoff_ms_max = 5_000
 
+[progress]
+log_interval_seconds = 30
+
 [output]
 format = "human" # "human" | "json"
 color = "auto"   # "auto" | "always" | "never"
