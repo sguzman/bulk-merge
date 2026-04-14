@@ -168,9 +168,28 @@ pub async fn ingest_dump_rows(
             {
                 match plan.mode {
                     IngestMode::Ingest => {
-                        db.insert_rows_text(&config.postgres.schema_libgen, &pg_table, &cols, &chunk)
-                            .await
-                            .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                        match config.execution.loader.kind {
+                            crate::config::LoaderKind::Copy => {
+                                db.copy_rows_text_tsv(
+                                    &config.postgres.schema_libgen,
+                                    &pg_table,
+                                    &cols,
+                                    &chunk,
+                                )
+                                .await
+                                .with_context(|| format!("failed COPY into `{}`", pg_table))?;
+                            }
+                            crate::config::LoaderKind::Insert => {
+                                db.insert_rows_text(
+                                    &config.postgres.schema_libgen,
+                                    &pg_table,
+                                    &cols,
+                                    &chunk,
+                                )
+                                .await
+                                .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                            }
+                        }
                     }
                     IngestMode::Update => {
                         db.upsert_rows_text(
@@ -202,9 +221,28 @@ pub async fn ingest_dump_rows(
         if !chunk.is_empty() {
             match plan.mode {
                 IngestMode::Ingest => {
-                    db.insert_rows_text(&config.postgres.schema_libgen, &pg_table, &cols, &chunk)
-                        .await
-                        .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                    match config.execution.loader.kind {
+                        crate::config::LoaderKind::Copy => {
+                            db.copy_rows_text_tsv(
+                                &config.postgres.schema_libgen,
+                                &pg_table,
+                                &cols,
+                                &chunk,
+                            )
+                            .await
+                            .with_context(|| format!("failed COPY into `{}`", pg_table))?;
+                        }
+                        crate::config::LoaderKind::Insert => {
+                            db.insert_rows_text(
+                                &config.postgres.schema_libgen,
+                                &pg_table,
+                                &cols,
+                                &chunk,
+                            )
+                            .await
+                            .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                        }
+                    }
                 }
                 IngestMode::Update => {
                     db.upsert_rows_text(

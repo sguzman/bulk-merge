@@ -290,6 +290,8 @@ pub struct ExecutionConfig {
     #[serde(default = "default_execution_memory_hard_limit_bytes")]
     pub memory_hard_limit_bytes: u64,
     #[serde(default)]
+    pub loader: LoaderConfig,
+    #[serde(default)]
     pub batch: BatchConfig,
     #[serde(default)]
     pub retry: RetryConfig,
@@ -319,6 +321,7 @@ impl Default for ExecutionConfig {
             dry_run_default: false,
             concurrency: default_concurrency(),
             memory_hard_limit_bytes: default_execution_memory_hard_limit_bytes(),
+            loader: LoaderConfig::default(),
             batch: BatchConfig::default(),
             retry: RetryConfig::default(),
         }
@@ -331,6 +334,31 @@ fn default_concurrency() -> u32 {
 
 fn default_execution_memory_hard_limit_bytes() -> u64 {
     512 * 1024 * 1024
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LoaderConfig {
+    #[serde(default = "default_loader_kind")]
+    pub kind: LoaderKind,
+}
+
+impl Default for LoaderConfig {
+    fn default() -> Self {
+        Self {
+            kind: default_loader_kind(),
+        }
+    }
+}
+
+fn default_loader_kind() -> LoaderKind {
+    LoaderKind::Copy
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum LoaderKind {
+    Copy,
+    Insert,
 }
 
 #[derive(Debug, Clone, Deserialize)]

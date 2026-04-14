@@ -238,6 +238,77 @@ where id = $1
     }
 
     #[instrument(skip_all, fields(schema = schema, table = table, rows = rows.len()))]
+    pub async fn copy_rows_text_tsv(
+        &self,
+        schema: &str,
+        table: &str,
+        columns: &[String],
+        rows: &[Vec<Option<String>>],
+    ) -> anyhow::Result<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let expected_cols = columns.len();
+        for r in rows {
+            if r.len() != expected_cols {
+                anyhow::bail!(
+                    "row length mismatch for copy: expected {expected_cols}, got {}",
+                    r.len()
+                );
+            }
+        }
+
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        // Use CSV format with tab delimiter. NULL is the literal \N (unquoted).
+        // We quote all non-NULL fields, escaping quotes by doubling.
+        let copy_stmt = format!(
+            "copy {schema_q}.{table_q} ({cols_sql}) from stdin with (format csv, delimiter E'\\t', null '\\\\N', quote '\"', escape '\"')"
+        );
+
+        let mut conn = self.pool.acquire().await?;
+        let mut copy_in = conn.copy_in_raw(&copy_stmt).await?;
+
+        let mut buf: Vec<u8> = Vec::new();
+        buf.reserve(rows.len().min(1024) * 128);
+
+        for row in rows {
+            for (i, val) in row.iter().enumerate() {
+                if i > 0 {
+                    buf.push(b'\t');
+                }
+                match val {
+                    None => buf.extend_from_slice(b"\\N"),
+                    Some(s) => {
+                        buf.push(b'"');
+                        for ch in s.chars() {
+                            if ch == '"' {
+                                buf.push(b'"');
+                                buf.push(b'"');
+                            } else {
+                                let mut tmp = [0u8; 4];
+                                buf.extend_from_slice(ch.encode_utf8(&mut tmp).as_bytes());
+                            }
+                        }
+                        buf.push(b'"');
+                    }
+                }
+            }
+            buf.push(b'\n');
+        }
+
+        copy_in.send(buf).await?;
+        copy_in.finish().await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, rows = rows.len()))]
     pub async fn upsert_rows_text(
         &self,
         schema: &str,

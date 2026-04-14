@@ -49,3 +49,4 @@ Environment overrides:
 
 - `execution.memory_hard_limit_bytes`: global memory guardrail for long-running ingestion steps.
 - `execution.batch.max_rows` / `execution.batch.max_bytes`: bounded buffering thresholds for batch writes.
+- `execution.loader.kind`: `copy|insert` (ingest path; update uses upsert).

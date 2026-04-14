@@ -36,6 +36,9 @@ dry_run_default = false
 concurrency = 2
 memory_hard_limit_bytes = 536_870_912
 
+[execution.loader]
+kind = "copy" # "copy" | "insert"
+
 [execution.batch]
 max_rows = 25_000
 max_bytes = 64_000_000

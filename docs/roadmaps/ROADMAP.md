@@ -50,7 +50,7 @@ framework.
 
 - [x] Implement LibGen SQL dump parser (MySQL dump subset: `CREATE TABLE`, `INSERT ... VALUES`, escaping, NULL/numbers).
 - [ ] Implement offline conversion path: dump → intermediate (TSV/CSV/JSONL) → Postgres `COPY`.
-- [x] Implement streaming ingestion path: dump → batched Postgres load (batched INSERT for now; COPY pending).
+- [x] Implement streaming ingestion path: dump → batched Postgres load (ingest via client-side COPY when enabled).
 - [ ] Implement per-dump-type schema isolation: dedicated tables for `fiction` and `compact` dumps.
 - [x] Map MySQL fields 1-to-1 into Postgres columns (Phase 1: store as `text`).
 - [x] Create indexes only after bulk loads finish (post-load indexing) to maximize ingest speed.

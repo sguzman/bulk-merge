@@ -24,10 +24,11 @@ Phase 1 current behavior:
 - scans the dump for `CREATE TABLE` statements and provisions dedicated PostgreSQL tables
   under `src_libgen` using the configured per-kind prefixes
 - parses `INSERT INTO ... VALUES` and bulk-inserts rows into the provisioned tables (Phase 1: all columns stored as `text`)
+- uses `COPY FROM STDIN` for ingest when `execution.loader.kind = "copy"` (default)
 - writes resumability checkpoints (byte offset) in `bm_meta.import_checkpoint` when enabled
 - creates post-load indexes after ingest when `postgres.indexing.create_after_load = true`
 
-COPY-based loading is not implemented yet.
+Update mode (`libgen update`) still uses upsert (`ON CONFLICT`) rather than COPY.
 
 ### `bulk-merge libgen update --kind <fiction|compact> --dump <path>`
 

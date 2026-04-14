@@ -61,7 +61,7 @@ Scope notes:
 
 ## Streaming Ingestion Path (No Intermediate Files)
 
-- [x] Parse dump and feed batched loads directly to Postgres (batched multi-row INSERT for now).
+- [x] Parse dump and feed batched loads directly to Postgres (ingest uses client-side COPY when enabled; update uses upsert).
 - [x] Resumability: checkpoints allow resuming from last processed offset/line.
 - [x] Backpressure and bounded memory (`max_rows`/`max_bytes` + `execution.memory_hard_limit_bytes`).
 - [x] Create indexes only after streaming ingest finishes (post-load indexing) to maximize ingest speed.
