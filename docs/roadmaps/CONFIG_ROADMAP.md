@@ -11,7 +11,9 @@ vary across environments should be expressed here rather than hardcoded.
 
 ## Paths & Cache Policy
 
-- [ ] `paths.cache_dir` (default `./.cache/bulk-merge`; used as base for intermediate artifacts and temp outputs).
+- [ ] `paths.cache_dir` (default `./.cache/bulk-merge`; base for intermediate artifacts and temp outputs).
+- [ ] `paths.cache_policy` (e.g. `always|prefer|never`) controlling whether commands default into cache dir or require explicit paths.
+- [ ] `libgen.offline.out_dir_default` derived from `paths.cache_dir` by default (unless explicitly set).
 
 ## Logging & Observability
 

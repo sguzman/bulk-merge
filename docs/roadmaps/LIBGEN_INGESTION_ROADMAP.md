@@ -26,6 +26,9 @@ Scope notes:
 
 - [x] TOML config includes Postgres connection details (credentials/host/db) and core tunables (pooling, batching, retries).
 - [ ] TOML config includes full schema/table naming policy for LibGen provisioned tables.
+  - [ ] Configurable `paths.cache_dir` base for all intermediate artifacts and temp outputs.
+  - [ ] Configurable offline artifact layout under cache dir (per-kind subdir naming policy).
+  - [ ] Configurable dataset naming policy for offline load (how `dataset_id` is chosen when absent).
 - [x] TOML config includes LibGen dump kind and resumability/incremental strategy knobs (initial surface).
 - [x] TOML config includes LibGen dump path and dataset_id as first-class settings.
 - [x] CLI can override high-value runtime knobs (log level/format, config path, dry-run).
@@ -50,6 +53,9 @@ Scope notes:
 - [x] Parse `INSERT INTO ... VALUES (...)` including multi-row inserts.
 - [x] Correctly decode MySQL string escapes, NULL, numbers, and backtick identifiers.
 - [ ] Guardrails: maximum statement size, bounded buffering, explicit error reporting with context.
+  - [ ] Error contexts include dump offset, statement kind guess, and a short statement preview (bounded) for debugging.
+  - [ ] Explicitly cap per-statement memory allocation and propagate a typed “statement too large” error.
+  - [ ] Add parser tests that assert guardrail errors are thrown with context (no panics).
 - [x] Parser unit tests with fixtures (CREATE TABLE + INSERT parsing basics).
 
 ## Offline Conversion Path (Intermediate Artifact + COPY)
@@ -58,8 +64,15 @@ Scope notes:
 - [x] Load intermediate into Postgres using `COPY` (fast path).
 - [x] Resumability: checkpoints allow restarting without reprocessing completed regions.
 - [x] Create indexes only after bulk insert finishes (post-load indexing) to maximize ingest speed.
-- [ ] Offline load resumability: restart-safe loads without manual cleanup (choose and implement one strategy: staging schema + swap, truncate-and-reload with run scoping, or per-table checkpoints with dedupe/upsert).
+- [ ] Offline load resumability: restart-safe loads without manual cleanup (choose and implement one strategy).
+  - [ ] Strategy A: staging tables + atomic swap/rename (requires a swap plan + index rebuild policy).
+  - [ ] Strategy B: run-scoped truncate+reload (requires strong run identity + explicit “unsafe” knob).
+  - [ ] Strategy C: per-table checkpoints + dedupe/upsert (requires stable keys for each table or row-hash).
+  - [ ] Add an integration test that simulates an interrupted offline load and verifies restart behavior.
 - [ ] Cache policy: all on-disk intermediate artifacts and temp outputs default under `./.cache/bulk-merge/` (configurable root).
+  - [ ] `bulk-merge libgen convert` defaults to writing into a kind-specific cache dir rooted at `paths.cache_dir`.
+  - [ ] `bulk-merge libgen convert` supports explicit `--out-dir` override (bypasses cache policy).
+  - [ ] Document cache directory contents and cleanup expectations (no manual QA; just doc).
 
 ## Streaming Ingestion Path (No Intermediate Files)
 
