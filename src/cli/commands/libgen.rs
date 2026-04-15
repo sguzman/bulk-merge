@@ -358,11 +358,25 @@ pub async fn offline_convert(
     dump: String,
     out_dir: Option<String>,
 ) -> anyhow::Result<()> {
-    let out_dir = match out_dir.or_else(|| config.libgen.offline.out_dir_default.clone()) {
+    let out_dir = match out_dir {
         Some(v) => v,
-        None => anyhow::bail!(
-            "no offline output dir configured; set `libgen.offline.out_dir_default` or pass `--out-dir` (paths.cache_policy=never)"
-        ),
+        None => {
+            let base = config.libgen.offline.out_dir_default.clone().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "no offline output dir configured; set `libgen.offline.out_dir_default` or pass `--out-dir` (paths.cache_policy=never)"
+                )
+            })?;
+            match config.libgen.offline.layout {
+                crate::config::LibgenOfflineLayout::Flat => base,
+                crate::config::LibgenOfflineLayout::KindSubdir => {
+                    let kind_str = match kind {
+                        LibgenDumpKind::Fiction => "fiction",
+                        LibgenDumpKind::Compact => "compact",
+                    };
+                    format!("{base}/{kind_str}")
+                }
+            }
+        }
     };
     if args.dry_run || config.execution.dry_run_default {
         info!(%out_dir, "dry-run: would convert dump to offline TSV");

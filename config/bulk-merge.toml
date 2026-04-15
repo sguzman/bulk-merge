@@ -80,6 +80,7 @@ compact_prefix = "compact_"
 [libgen.offline]
 # If omitted, defaults to `${paths.cache_dir}/libgen-offline` unless `paths.cache_policy="never"`.
 # out_dir_default = ".cache/bulk-merge/libgen-offline"
+layout = "kind_subdir" # "kind_subdir" | "flat"
 
 [libgen.resume]
 enabled = true

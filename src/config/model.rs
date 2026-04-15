@@ -603,12 +603,15 @@ impl LibgenConfig {
 pub struct LibgenOfflineConfig {
     #[serde(default)]
     pub out_dir_default: Option<String>,
+    #[serde(default = "default_libgen_offline_layout")]
+    pub layout: LibgenOfflineLayout,
 }
 
 impl Default for LibgenOfflineConfig {
     fn default() -> Self {
         Self {
             out_dir_default: None,
+            layout: default_libgen_offline_layout(),
         }
     }
 }
@@ -624,6 +627,19 @@ impl LibgenOfflineConfig {
             self.out_dir_default = Some(format!("{}/libgen-offline", paths.cache_dir));
         }
     }
+}
+
+fn default_libgen_offline_layout() -> LibgenOfflineLayout {
+    LibgenOfflineLayout::KindSubdir
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LibgenOfflineLayout {
+    /// Write artifacts into the configured directory directly.
+    Flat,
+    /// Write artifacts into a per-kind subdir under the configured directory.
+    KindSubdir,
 }
 
 #[derive(Debug, Clone, Deserialize)]

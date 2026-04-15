@@ -76,6 +76,7 @@ Offline conversion mode:
 - can be resumed by re-running the same command with the same `--out-dir`
 - default `--out-dir` is controlled by `libgen.offline.out_dir_default` (default: `.cache/bulk-merge/libgen-offline`)
   - if `libgen.offline.out_dir_default` is omitted, it defaults to `${paths.cache_dir}/libgen-offline` unless `paths.cache_policy="never"`
+  - if `libgen.offline.layout="kind_subdir"` (default), artifacts are written into `${out_dir}/{fiction|compact}` when `--out-dir` is not provided
 
 ### `bulk-merge libgen load --in-dir <dir>`
 
