@@ -221,6 +221,9 @@ fn write_row_tsv<W: Write>(
     row: &[Value],
     column_types: Option<&[crate::db::PgTargetType]>,
 ) -> anyhow::Result<()> {
+    // Emit Postgres COPY "text" format (tab-delimited) rather than CSV.
+    // - NULL is the literal \N (unescaped, unquoted).
+    // - Non-NULL fields escape backslash, tab, newline, and carriage return.
     for (i, v) in row.iter().enumerate() {
         if i > 0 {
             w.write_all(b"\t")?;
@@ -242,18 +245,18 @@ fn write_row_tsv<W: Write>(
                     w.write_all(b"\\N")?;
                     continue;
                 };
-
-                w.write_all(b"\"")?;
-                // Escape by doubling quotes.
                 for ch in out.chars() {
-                    if ch == '"' {
-                        w.write_all(b"\"\"")?;
-                    } else {
-                        let mut tmp = [0u8; 4];
-                        w.write_all(ch.encode_utf8(&mut tmp).as_bytes())?;
+                    match ch {
+                        '\\' => w.write_all(b"\\\\")?,
+                        '\t' => w.write_all(b"\\t")?,
+                        '\n' => w.write_all(b"\\n")?,
+                        '\r' => w.write_all(b"\\r")?,
+                        _ => {
+                            let mut tmp = [0u8; 4];
+                            w.write_all(ch.encode_utf8(&mut tmp).as_bytes())?;
+                        }
                     }
                 }
-                w.write_all(b"\"")?;
             }
         }
     }

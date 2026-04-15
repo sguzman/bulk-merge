@@ -742,8 +742,10 @@ where id = $1
             .collect::<Vec<_>>()
             .join(", ");
 
+        // Read from a tab-delimited Postgres COPY "text" stream.
+        // This avoids CSV quoting edge cases and treats the literal \N as NULL.
         let copy_stmt = format!(
-            "copy {schema_q}.{table_q} ({cols_sql}) from stdin with (format csv, delimiter E'\\t', null '\\\\N', quote '\"', escape '\"')"
+            "copy {schema_q}.{table_q} ({cols_sql}) from stdin with (format text, delimiter E'\\t', null '\\\\N')"
         );
 
         let mut f = tokio::fs::File::open(path)

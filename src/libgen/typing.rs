@@ -11,6 +11,16 @@ pub(crate) fn coerce_value_best_effort(
     if trimmed.is_empty() {
         return Ok(None);
     }
+    // In some dumps, string `\N` may be used as a NULL sentinel. Treat it as NULL for any
+    // non-text target type so typed COPY does not fail.
+    if ty != PgTargetType::Text && trimmed == "\\N" {
+        return Ok(None);
+    }
+    // For date/timestamp columns, any backslash-containing value is treated as unrepresentable.
+    // This catches odd dump sentinels that otherwise survive escaping into COPY streams.
+    if matches!(ty, PgTargetType::Timestamp | PgTargetType::Date) && trimmed.contains('\\') {
+        return Ok(None);
+    }
 
     let coerced = match ty {
         PgTargetType::Text => Some(s),
@@ -31,16 +41,28 @@ pub(crate) fn coerce_value_best_effort(
             }
         }
         PgTargetType::Timestamp => {
-            // Accept common MySQL formats; let Postgres parse it.
-            if trimmed.len() >= 10 {
-                Some(trimmed.to_string())
+            // Validate common MySQL formats and reject invalid "zero" dates like
+            // 0000-00-00 00:00:00 (Postgres can't represent them).
+            if trimmed == "0000-00-00 00:00:00" || trimmed == "0000-00-00" {
+                None
+            } else if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S")
+            {
+                Some(dt.format("%Y-%m-%d %H:%M:%S").to_string())
+            } else if let Ok(dt) =
+                chrono::NaiveDateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M:%S%.f")
+            {
+                Some(dt.format("%Y-%m-%d %H:%M:%S%.f").to_string())
+            } else if let Ok(d) = chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d") {
+                Some(d.and_hms_opt(0, 0, 0).unwrap().format("%Y-%m-%d %H:%M:%S").to_string())
             } else {
                 None
             }
         }
         PgTargetType::Date => {
-            if trimmed.len() >= 8 {
-                Some(trimmed.to_string())
+            if trimmed == "0000-00-00" {
+                None
+            } else if let Ok(d) = chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d") {
+                Some(d.format("%Y-%m-%d").to_string())
             } else {
                 None
             }
