@@ -213,6 +213,31 @@ pub struct InsertStatement {
     pub rows: Vec<Vec<Value>>,
 }
 
+pub fn parse_insert_into_values_input<'a>(
+    stmt: &'a str,
+) -> Result<Option<(String, &'a str)>, MySqlDumpError> {
+    let trimmed = strip_leading_comments(stmt).trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    let upper = trimmed.to_ascii_uppercase();
+    if !upper.starts_with("INSERT INTO") {
+        return Ok(None);
+    }
+
+    let mut rest = trimmed.trim_start();
+    rest = rest[11..].trim_start(); // len("INSERT INTO") == 11
+    let (table, after_table) = parse_identifier(rest)
+        .ok_or_else(|| MySqlDumpError::Parse("failed to parse INSERT INTO table name".to_string()))?;
+
+    let upper_after = after_table.to_ascii_uppercase();
+    let values_pos = upper_after.find("VALUES").ok_or_else(|| {
+        MySqlDumpError::Parse("INSERT INTO without VALUES is not supported".to_string())
+    })?;
+    let after_values = after_table[values_pos + 6..].trim_start();
+    Ok(Some((table, after_values)))
+}
+
 pub fn parse_insert_into(stmt: &str) -> Result<Option<InsertStatement>, MySqlDumpError> {
     let trimmed = strip_leading_comments(stmt).trim();
     if trimmed.is_empty() {
@@ -226,16 +251,9 @@ pub fn parse_insert_into(stmt: &str) -> Result<Option<InsertStatement>, MySqlDum
     // Expected minimal subset:
     // INSERT INTO `table` VALUES (...),(...);
     // We ignore any explicit column list for now.
-    let mut rest = trimmed.trim_start();
-    rest = rest[11..].trim_start(); // len("INSERT INTO") == 11
-    let (table, after_table) = parse_identifier(rest)
-        .ok_or_else(|| MySqlDumpError::Parse("failed to parse INSERT INTO table name".to_string()))?;
-
-    let upper_after = after_table.to_ascii_uppercase();
-    let values_pos = upper_after.find("VALUES").ok_or_else(|| {
-        MySqlDumpError::Parse("INSERT INTO without VALUES is not supported".to_string())
-    })?;
-    let mut after_values = after_table[values_pos + 6..].trim_start();
+    let Some((table, mut after_values)) = parse_insert_into_values_input(trimmed)? else {
+        return Ok(None);
+    };
 
     // Parse a comma-separated list of parenthesized rows.
     let mut rows: Vec<Vec<Value>> = Vec::new();
@@ -269,7 +287,50 @@ pub fn parse_insert_into(stmt: &str) -> Result<Option<InsertStatement>, MySqlDum
     Ok(Some(InsertStatement { table, rows }))
 }
 
-fn parse_row(input: &str) -> Result<(Vec<Value>, &str), MySqlDumpError> {
+pub fn parse_insert_into_for_each_row<F>(
+    stmt: &str,
+    mut on_row: F,
+) -> Result<Option<(String, u64)>, MySqlDumpError>
+where
+    F: FnMut(Vec<Value>) -> Result<(), MySqlDumpError>,
+{
+    let Some((table, mut after_values)) = parse_insert_into_values_input(stmt)? else {
+        return Ok(None);
+    };
+
+    let mut rows_seen: u64 = 0;
+    while !after_values.is_empty() {
+        after_values = after_values.trim_start();
+        if after_values.starts_with(';') {
+            break;
+        }
+        if after_values.starts_with(',') {
+            after_values = after_values[1..].trim_start();
+            continue;
+        }
+        if !after_values.starts_with('(') {
+            break;
+        }
+
+        let (row, rest_row) = parse_row(after_values)?;
+        on_row(row)?;
+        rows_seen += 1;
+        after_values = rest_row.trim_start();
+        if after_values.starts_with(';') {
+            break;
+        }
+    }
+
+    if rows_seen == 0 {
+        return Err(MySqlDumpError::Parse(
+            "INSERT INTO parsed but yielded zero rows".to_string(),
+        ));
+    }
+
+    Ok(Some((table, rows_seen)))
+}
+
+pub(crate) fn parse_row(input: &str) -> Result<(Vec<Value>, &str), MySqlDumpError> {
     let s = input.trim_start();
     if !s.starts_with('(') {
         return Err(MySqlDumpError::Parse("expected '('".to_string()));

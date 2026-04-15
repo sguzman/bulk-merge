@@ -92,6 +92,9 @@ dumps = { fiction = "", compact = "" }
 # out_dir_default = ".cache/bulk-merge/libgen-offline"
 layout = "kind_subdir" # "kind_subdir" | "flat"
 
+[libgen.offline.convert]
+checkpoint_interval_bytes = 67_108_864
+
 [libgen.offline.load]
 strategy = "staging_swap"
 staging_schema_prefix = "src_libgen_staging"

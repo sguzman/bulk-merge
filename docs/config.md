@@ -68,6 +68,7 @@ Environment overrides:
 - `libgen.offline.out_dir_default`: default directory for `bulk-merge libgen convert` output (`manifest.json`, `state.json`, `*.tsv`).
   - If omitted, defaults to `${paths.cache_dir}/libgen-offline` unless `paths.cache_policy = "never"`.
 - `libgen.offline.layout`: `kind_subdir|flat` controls whether offline artifacts are written into `${out_dir_default}/{fiction|compact}` or directly into `out_dir_default`.
+- `libgen.offline.convert.checkpoint_interval_bytes`: conversion checkpoint interval (bytes processed) used to flush TSV writers and persist `state.json` (resumability vs throughput tradeoff).
 - `libgen.offline.load.strategy`: currently `staging_swap` (load into a staging schema, then rename into place).
 - `libgen.offline.load.staging_schema_prefix`: prefix used to create per-run staging schemas.
 - `libgen.offline.load.dataset_id_template`: default dataset id template used when `--dataset-id` and `libgen.dump.dataset_id` are absent (supports `{kind}`).

@@ -218,6 +218,10 @@ impl AppConfig {
             errors.push("libgen.offline.load.dataset_id_template must not be empty".to_string());
         }
 
+        if self.libgen.offline.convert.checkpoint_interval_bytes == 0 {
+            errors.push("libgen.offline.convert.checkpoint_interval_bytes must be > 0".to_string());
+        }
+
         if self.libgen.dump.max_statement_bytes == 0 {
             errors.push("libgen.dump.max_statement_bytes must be > 0".to_string());
         }
@@ -676,6 +680,8 @@ pub struct LibgenOfflineConfig {
     pub layout: LibgenOfflineLayout,
     #[serde(default)]
     pub load: LibgenOfflineLoadConfig,
+    #[serde(default)]
+    pub convert: LibgenOfflineConvertConfig,
 }
 
 impl Default for LibgenOfflineConfig {
@@ -684,6 +690,7 @@ impl Default for LibgenOfflineConfig {
             out_dir_default: None,
             layout: default_libgen_offline_layout(),
             load: LibgenOfflineLoadConfig::default(),
+            convert: LibgenOfflineConvertConfig::default(),
         }
     }
 }
@@ -712,6 +719,24 @@ pub enum LibgenOfflineLayout {
     Flat,
     /// Write artifacts into a per-kind subdir under the configured directory.
     KindSubdir,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LibgenOfflineConvertConfig {
+    #[serde(default = "default_libgen_offline_convert_checkpoint_interval_bytes")]
+    pub checkpoint_interval_bytes: u64,
+}
+
+impl Default for LibgenOfflineConvertConfig {
+    fn default() -> Self {
+        Self {
+            checkpoint_interval_bytes: default_libgen_offline_convert_checkpoint_interval_bytes(),
+        }
+    }
+}
+
+fn default_libgen_offline_convert_checkpoint_interval_bytes() -> u64 {
+    64 * 1024 * 1024
 }
 
 #[derive(Debug, Clone, Deserialize)]

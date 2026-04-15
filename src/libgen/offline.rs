@@ -1,7 +1,8 @@
 use crate::config::{AppConfig, LibgenDumpKind, LibgenOfflineLoadStrategy};
 use crate::db::Db;
 use crate::libgen::mysql_dump::{
-    parse_create_table, parse_insert_into, seek_to_offset, statement_preview, StatementReader, TableDef, Value,
+    parse_create_table, parse_insert_into_values_input, seek_to_offset, statement_preview, StatementReader, TableDef,
+    Value,
 };
 use crate::progress::{ProgressConfig, ProgressTicker};
 use anyhow::Context as _;
@@ -94,6 +95,8 @@ pub fn convert_dump_to_tsv(
 
     let mut table_defs: BTreeMap<String, TableDef> = BTreeMap::new();
     let mut writers: BTreeMap<String, BufWriter<File>> = BTreeMap::new();
+    let mut last_checkpoint_offset: u64 = state.dump_offset;
+    let checkpoint_interval = config.libgen.offline.convert.checkpoint_interval_bytes.max(1);
 
     let mut ticker = ProgressTicker::new(ProgressConfig {
         log_interval: Duration::from_secs(config.progress.log_interval_seconds),
@@ -120,23 +123,22 @@ pub fn convert_dump_to_tsv(
             format!("failed parsing CREATE TABLE at offset_end={off}: {preview}")
         })? {
             table_defs.entry(def.name.clone()).or_insert(def);
-            state.dump_offset = off;
-            std::fs::write(&state_path, serde_json::to_vec_pretty(&state)?)?;
             continue;
         }
 
-        let Some(insert) = parse_insert_into(&stmt).with_context(|| {
-            let preview = statement_preview(&stmt, config.libgen.dump.error_preview_bytes as usize);
-            format!("failed parsing INSERT INTO at offset_end={off}: {preview}")
-        })? else {
-            state.dump_offset = off;
-            std::fs::write(&state_path, serde_json::to_vec_pretty(&state)?)?;
+        let Some((table_name, mut after_values)) = parse_insert_into_values_input(&stmt)
+            .with_context(|| {
+                let preview =
+                    statement_preview(&stmt, config.libgen.dump.error_preview_bytes as usize);
+                format!("failed parsing INSERT INTO at offset_end={off}: {preview}")
+            })?
+        else {
             continue;
         };
 
         // Ensure a writer exists for the table.
-        let w = writers.entry(insert.table.clone()).or_insert_with(|| {
-            let path = table_file_path(out_dir, &insert.table);
+        let w = writers.entry(table_name.clone()).or_insert_with(|| {
+            let path = table_file_path(out_dir, &table_name);
             let f = OpenOptions::new()
                 .create(true)
                 .append(true)
@@ -147,14 +149,40 @@ pub fn convert_dump_to_tsv(
 
         // Emit TSV rows in a COPY-friendly format:
         // format csv, delimiter \t, null \N, quote ", escape "
-        for row in insert.rows {
+        while !after_values.is_empty() {
+            after_values = after_values.trim_start();
+            if after_values.starts_with(';') {
+                break;
+            }
+            if after_values.starts_with(',') {
+                after_values = after_values[1..].trim_start();
+                continue;
+            }
+            if !after_values.starts_with('(') {
+                break;
+            }
+            let (row, rest_row) = crate::libgen::mysql_dump::parse_row(after_values)?;
             write_row_tsv(config, w, &row)?;
+            after_values = rest_row;
         }
-        w.flush()?;
 
-        state.dump_offset = off;
-        std::fs::write(&state_path, serde_json::to_vec_pretty(&state)?)?;
+        // Periodic checkpointing for resumability without flushing/writing state on every statement.
+        if off.saturating_sub(last_checkpoint_offset) >= checkpoint_interval {
+            for w in writers.values_mut() {
+                w.flush()?;
+            }
+            state.dump_offset = off;
+            std::fs::write(&state_path, serde_json::to_vec_pretty(&state)?)?;
+            last_checkpoint_offset = off;
+        }
     }
+
+    // Final checkpoint flush.
+    for w in writers.values_mut() {
+        w.flush()?;
+    }
+    state.dump_offset = stmt_reader.offset();
+    std::fs::write(&state_path, serde_json::to_vec_pretty(&state)?)?;
 
     let manifest = OfflineManifest {
         kind: normalize_kind(kind).to_string(),
