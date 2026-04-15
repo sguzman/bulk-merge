@@ -22,6 +22,7 @@ Scope notes:
 - [x] `bulk-merge libgen sample` prints a small sample of rows (Phase 1: JSON via `row_to_json`).
 - [x] `bulk-merge libgen validate` runs minimal invariants and reports failures (Phase 1: row count > 0).
 - [x] `bulk-merge libgen load-status` reports offline staging/swap progress for an import run id.
+- [x] `bulk-merge libgen load` supports resuming a prior offline load (`--import-run-id` / `--resume-latest`).
 
 ## Configuration & Policies (Control Pane)
 

@@ -58,7 +58,18 @@ pub async fn dispatch(args: Args, config: AppConfig) -> anyhow::Result<()> {
                 in_dir,
                 dataset_id,
                 dataset_version,
-            } => libgen::offline_load(&args, &config, in_dir, dataset_id, dataset_version).await,
+                import_run_id,
+                resume_latest,
+            } => libgen::offline_load(
+                &args,
+                &config,
+                in_dir,
+                dataset_id,
+                dataset_version,
+                import_run_id,
+                resume_latest,
+            )
+            .await,
             LibgenCommand::LoadStatus { import_run_id } => {
                 libgen::offline_load_status(&config, import_run_id).await
             }

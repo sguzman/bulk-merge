@@ -101,6 +101,14 @@ pub enum LibgenCommand {
         /// Optional dataset version label for this import run
         #[arg(long)]
         dataset_version: Option<String>,
+        /// Resume a previous offline load by using an existing import run id.
+        /// When set, `dataset_version` is ignored and the run is not re-created.
+        #[arg(long)]
+        import_run_id: Option<i64>,
+        /// Resume the most recent in_progress/failed import run for the resolved dataset_id.
+        /// Ignored if `--import-run-id` is provided.
+        #[arg(long)]
+        resume_latest: bool,
     },
     /// Offline load status: print swap/staging progress for an import run id
     LoadStatus {

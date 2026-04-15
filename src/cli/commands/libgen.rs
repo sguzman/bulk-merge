@@ -395,6 +395,8 @@ pub async fn offline_load(
     in_dir: String,
     dataset_id: Option<String>,
     dataset_version: Option<String>,
+    import_run_id: Option<i64>,
+    resume_latest: bool,
 ) -> anyhow::Result<()> {
     let bytes =
         std::fs::read(std::path::Path::new(&in_dir).join("manifest.json")).context("missing manifest.json")?;
@@ -418,8 +420,15 @@ pub async fn offline_load(
         .or_else(|| config.libgen.dump.dataset_id.clone())
         .unwrap_or_else(|| format!("libgen-{kind:?}"));
 
-    let run_id = db
-        .create_import_run(
+    let run_id = if let Some(run_id) = import_run_id {
+        run_id
+    } else if resume_latest {
+        db.latest_import_run_id_for_dataset("libgen", &dataset_id, &["in_progress", "failed"])
+            .await
+            .context("failed querying latest import run for resume")?
+            .ok_or_else(|| anyhow::anyhow!("no resumable import_run found for dataset_id `{}`", dataset_id))?
+    } else {
+        db.create_import_run(
             "libgen",
             &dataset_id,
             dataset_version.as_deref(),
@@ -429,7 +438,17 @@ pub async fn offline_load(
             config,
         )
         .await
-        .context("failed to create bm_meta.import_run")?;
+        .context("failed to create bm_meta.import_run")?
+    };
+
+    let status = db
+        .import_run_status(run_id)
+        .await
+        .context("failed fetching import run status")?
+        .ok_or_else(|| anyhow::anyhow!("import_run_id {run_id} not found"))?;
+    if status != "in_progress" && status != "failed" {
+        anyhow::bail!("import_run_id {run_id} has status `{status}`; only in_progress/failed can be resumed");
+    }
 
     load_tsv_into_postgres(&db, config, &in_dir, run_id)
         .await

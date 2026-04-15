@@ -912,6 +912,47 @@ limit $2
     }
 
     #[instrument(skip_all, fields(import_run_id = import_run_id))]
+    pub async fn import_run_status(&self, import_run_id: i64) -> anyhow::Result<Option<String>> {
+        let rec: Option<(String,)> = sqlx::query_as(
+            r#"
+select status
+from bm_meta.import_run
+where id = $1
+"#,
+        )
+        .bind(import_run_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(rec.map(|r| r.0))
+    }
+
+    #[instrument(skip_all, fields(source_name = source_name, dataset_id = dataset_id))]
+    pub async fn latest_import_run_id_for_dataset(
+        &self,
+        source_name: &str,
+        dataset_id: &str,
+        statuses: &[&str],
+    ) -> anyhow::Result<Option<i64>> {
+        let rec: Option<(i64,)> = sqlx::query_as(
+            r#"
+select id
+from bm_meta.import_run
+where source_name = $1
+  and dataset_id = $2
+  and status = any($3)
+order by started_at desc
+limit 1
+"#,
+        )
+        .bind(source_name)
+        .bind(dataset_id)
+        .bind(statuses)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(rec.map(|r| r.0))
+    }
+
+    #[instrument(skip_all, fields(import_run_id = import_run_id))]
     pub async fn raw_statement_count(&self, import_run_id: i64) -> anyhow::Result<i64> {
         let rec: (i64,) = sqlx::query_as(
             r#"
