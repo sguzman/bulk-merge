@@ -9,6 +9,8 @@ policies, and ingest tuning knobs (batch sizes, concurrency, retries, etc.).
 - `paths.cache_dir`: base directory for cacheable artifacts and temp outputs (default `./.cache/bulk-merge`).
 - `paths.cache_policy`: `always|prefer|never` controls whether commands default into `paths.cache_dir` when no explicit output path is provided.
 
+See `docs/cache.md` for the expected on-disk layout and cleanup notes.
+
 ## PostgreSQL
 
 Minimum required:
