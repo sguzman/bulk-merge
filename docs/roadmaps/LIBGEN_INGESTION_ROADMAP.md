@@ -70,8 +70,9 @@ Scope notes:
   - [ ] Strategy C: per-table checkpoints + dedupe/upsert (requires stable keys for each table or row-hash).
   - [ ] Add an integration test that simulates an interrupted offline load and verifies restart behavior.
 - [ ] Cache policy: all on-disk intermediate artifacts and temp outputs default under `./.cache/bulk-merge/` (configurable root).
-  - [ ] `bulk-merge libgen convert` defaults to writing into a kind-specific cache dir rooted at `paths.cache_dir`.
-  - [ ] `bulk-merge libgen convert` supports explicit `--out-dir` override (bypasses cache policy).
+  - [x] Default offline artifacts under `paths.cache_dir` when no explicit output dir is provided (via derived `libgen.offline.out_dir_default`).
+  - [x] `bulk-merge libgen convert` supports explicit `--out-dir` override (bypasses cache policy).
+  - [ ] `bulk-merge libgen convert` defaults to writing into a kind-specific cache dir rooted at `paths.cache_dir` (e.g. `${paths.cache_dir}/libgen-offline/{fiction|compact}`).
   - [ ] Document cache directory contents and cleanup expectations (no manual QA; just doc).
 
 ## Streaming Ingestion Path (No Intermediate Files)
