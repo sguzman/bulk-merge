@@ -69,12 +69,12 @@ Environment overrides:
   - If omitted, defaults to `${paths.cache_dir}/libgen-offline` unless `paths.cache_policy = "never"`.
 - `libgen.offline.layout`: `kind_subdir|flat` controls whether offline artifacts are written into `${out_dir_default}/{fiction|compact}` or directly into `out_dir_default`.
 - `libgen.offline.convert.checkpoint_interval_bytes`: conversion checkpoint interval (bytes processed) used to flush TSV writers and persist `state.json` (resumability vs throughput tradeoff).
-- `libgen.offline.load.strategy`: currently `staging_swap` (load into a staging schema, then rename into place).
-- `libgen.offline.load.staging_schema_prefix`: prefix used to create per-run staging schemas.
+- `libgen.offline.load.strategy`: currently `staging_swap` (load into staging tables, then rename into place).
+- `libgen.offline.load.staging_table_suffix_template`: staging table suffix (default `__staging_{import_run_id}`).
 - `libgen.offline.load.dataset_id_template`: default dataset id template used when `--dataset-id` and `libgen.dump.dataset_id` are absent (supports `{kind}`).
 - `libgen.offline.load.keep_old_tables`: keep the previous live table as `${table}__old_<run_id>` when swapping in staging tables.
 - `libgen.offline.load.drop_old_tables_on_success`: drop any kept old tables at the end of a successful load (default false).
-- `libgen.offline.load.drop_staging_schema_on_success`: drop the per-run staging schema after a successful load (default false).
+- `libgen.offline.load.drop_staging_tables_on_success`: drop staging tables after a successful load (default false).
 - `libgen.offline.load.resume_strict_manifest_match`: when resuming an existing import run, require the manifest kind/dump path to match the recorded import_run config (default true).
 
 ## LibGen init-db provisioning (optional)

@@ -97,11 +97,11 @@ checkpoint_interval_bytes = 67_108_864
 
 [libgen.offline.load]
 strategy = "staging_swap"
-staging_schema_prefix = "src_libgen_staging"
+staging_table_suffix_template = "__staging_{import_run_id}"
 dataset_id_template = "libgen-{kind}"
 keep_old_tables = true
 drop_old_tables_on_success = false
-drop_staging_schema_on_success = false
+drop_staging_tables_on_success = false
 resume_strict_manifest_match = true
 
 [libgen.resume]

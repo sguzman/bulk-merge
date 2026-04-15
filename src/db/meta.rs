@@ -205,18 +205,18 @@ order by table_name
         Ok(recs)
     }
 
-    #[instrument(skip_all, fields(schema_live = schema_live, schema_staging = schema_staging, table = table))]
-    pub async fn swap_table_from_staging(
+    #[instrument(skip_all, fields(schema = schema, table = table, staging_table = staging_table))]
+    pub async fn swap_table_from_staging_table(
         &self,
-        schema_live: &str,
-        schema_staging: &str,
+        schema: &str,
         table: &str,
+        staging_table: &str,
         keep_old: bool,
         old_suffix: &str,
     ) -> anyhow::Result<()> {
-        let schema_live_q = quote_ident(schema_live);
-        let schema_staging_q = quote_ident(schema_staging);
+        let schema_q = quote_ident(schema);
         let table_q = quote_ident(table);
+        let staging_q = quote_ident(staging_table);
         let old_name = format!("{table}__old_{old_suffix}");
         let old_q = quote_ident(&old_name);
 
@@ -229,7 +229,7 @@ from information_schema.tables
 where table_schema = $1 and table_type = 'BASE TABLE' and table_name = $2
 "#,
             )
-            .bind(schema_live)
+            .bind(schema)
             .bind(table)
             .fetch_optional(&mut *tx)
             .await?;
@@ -238,19 +238,15 @@ where table_schema = $1 and table_type = 'BASE TABLE' and table_name = $2
 
         if live_exists {
             if keep_old {
-                let sql = format!(
-                    "alter table {schema_live_q}.{table_q} rename to {old_q}"
-                );
+                let sql = format!("alter table {schema_q}.{table_q} rename to {old_q}");
                 sqlx::query(&sql).execute(&mut *tx).await?;
             } else {
-                let sql = format!("drop table {schema_live_q}.{table_q}");
+                let sql = format!("drop table {schema_q}.{table_q}");
                 sqlx::query(&sql).execute(&mut *tx).await?;
             }
         }
 
-        let sql = format!(
-            "alter table {schema_staging_q}.{table_q} set schema {schema_live_q}"
-        );
+        let sql = format!("alter table {schema_q}.{staging_q} rename to {table_q}");
         sqlx::query(&sql).execute(&mut *tx).await?;
         tx.commit().await?;
 

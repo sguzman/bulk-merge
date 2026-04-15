@@ -210,8 +210,17 @@ impl AppConfig {
             errors.push("paths.cache_dir must not be empty".to_string());
         }
 
-        if self.libgen.offline.load.staging_schema_prefix.trim().is_empty() {
-            errors.push("libgen.offline.load.staging_schema_prefix must not be empty".to_string());
+        if self
+            .libgen
+            .offline
+            .load
+            .staging_table_suffix_template
+            .trim()
+            .is_empty()
+        {
+            errors.push(
+                "libgen.offline.load.staging_table_suffix_template must not be empty".to_string(),
+            );
         }
 
         if self.libgen.offline.load.dataset_id_template.trim().is_empty() {
@@ -790,8 +799,8 @@ fn default_libgen_offline_convert_checkpoint_interval_bytes() -> u64 {
 pub struct LibgenOfflineLoadConfig {
     #[serde(default = "default_libgen_offline_load_strategy")]
     pub strategy: LibgenOfflineLoadStrategy,
-    #[serde(default = "default_libgen_offline_staging_schema_prefix")]
-    pub staging_schema_prefix: String,
+    #[serde(default = "default_libgen_offline_staging_table_suffix_template")]
+    pub staging_table_suffix_template: String,
     #[serde(default = "default_libgen_offline_dataset_id_template")]
     pub dataset_id_template: String,
     #[serde(default = "default_true")]
@@ -799,7 +808,7 @@ pub struct LibgenOfflineLoadConfig {
     #[serde(default)]
     pub drop_old_tables_on_success: bool,
     #[serde(default)]
-    pub drop_staging_schema_on_success: bool,
+    pub drop_staging_tables_on_success: bool,
     #[serde(default = "default_true")]
     pub resume_strict_manifest_match: bool,
 }
@@ -808,11 +817,11 @@ impl Default for LibgenOfflineLoadConfig {
     fn default() -> Self {
         Self {
             strategy: default_libgen_offline_load_strategy(),
-            staging_schema_prefix: default_libgen_offline_staging_schema_prefix(),
+            staging_table_suffix_template: default_libgen_offline_staging_table_suffix_template(),
             dataset_id_template: default_libgen_offline_dataset_id_template(),
             keep_old_tables: true,
             drop_old_tables_on_success: false,
-            drop_staging_schema_on_success: false,
+            drop_staging_tables_on_success: false,
             resume_strict_manifest_match: true,
         }
     }
@@ -822,8 +831,8 @@ fn default_libgen_offline_load_strategy() -> LibgenOfflineLoadStrategy {
     LibgenOfflineLoadStrategy::StagingSwap
 }
 
-fn default_libgen_offline_staging_schema_prefix() -> String {
-    "src_libgen_staging".to_string()
+fn default_libgen_offline_staging_table_suffix_template() -> String {
+    "__staging_{import_run_id}".to_string()
 }
 
 fn default_libgen_offline_dataset_id_template() -> String {

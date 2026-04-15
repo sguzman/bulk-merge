@@ -86,7 +86,8 @@ vary across environments should be expressed here rather than hardcoded.
 - [x] `libgen.offline.out_dir_default` (default output directory for offline conversion artifacts).
 - [x] `libgen.offline.layout` (`kind_subdir|flat`) (offline artifact layout policy under cache dir).
 - [x] `libgen.offline.load.*` (offline load strategy + staging/swap policy knobs).
-  - [x] `libgen.offline.load.drop_staging_schema_on_success`.
+  - [x] `libgen.offline.load.drop_staging_tables_on_success`.
+  - [x] `libgen.offline.load.staging_table_suffix_template`.
   - [x] `libgen.offline.load.dataset_id_template`.
   - [x] `libgen.offline.load.resume_strict_manifest_match` (resume safety policy).
 - [x] Document raw landing table name is fixed to `src_libgen.raw_statement` (migration-defined).
