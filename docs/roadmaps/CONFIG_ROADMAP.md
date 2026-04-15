@@ -68,6 +68,10 @@ vary across environments should be expressed here rather than hardcoded.
 - [x] `libgen.dump.max_statement_bytes` (guardrail).
 - [x] `libgen.dump.error_preview_bytes` (bounded statement preview for parse errors).
 
+## LibGen init-db provisioning
+
+- [x] `libgen.init.provision_tables` and `libgen.init.dumps` (optional schema-only provisioning during `init-db`).
+
 ## LibGen Table Provisioning
 
 - [x] `libgen.tables.fiction.name` (or naming template).
@@ -76,6 +80,7 @@ vary across environments should be expressed here rather than hardcoded.
 - [x] `libgen.offline.layout` (`kind_subdir|flat`) (offline artifact layout policy under cache dir).
 - [x] `libgen.offline.load.*` (offline load strategy + staging/swap policy knobs).
   - [x] `libgen.offline.load.drop_staging_schema_on_success`.
+  - [x] `libgen.offline.load.dataset_id_template`.
 - [x] Document raw landing table name is fixed to `src_libgen.raw_statement` (migration-defined).
 - [ ] Make raw landing table name configurable (requires migration redesign / dynamic DDL strategy).
 

@@ -29,7 +29,18 @@ pub async fn register_run(
 
     let dataset_id = dataset_id
         .or_else(|| config.libgen.dump.dataset_id.clone())
-        .unwrap_or_else(|| format!("libgen-{kind:?}"));
+        .unwrap_or_else(|| {
+            let kind_str = match kind {
+                LibgenDumpKind::Fiction => "fiction",
+                LibgenDumpKind::Compact => "compact",
+            };
+            config
+                .libgen
+                .offline
+                .load
+                .dataset_id_template
+                .replace("{kind}", kind_str)
+        });
 
     let run_id = db
         .create_import_run(

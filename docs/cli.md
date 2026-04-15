@@ -16,6 +16,10 @@ Creates base schemas and bookkeeping tables:
 - `bm_meta.*` for import runs/checkpoints
 - `src_libgen` schema (Phase 1)
 
+Optional:
+
+- when `libgen.init.provision_tables = true`, scans configured dump paths for `CREATE TABLE` statements and provisions the corresponding tables (no row ingest)
+
 ### `bulk-merge libgen ingest --kind <fiction|compact> --dump <path>`
 
 Phase 1 current behavior:

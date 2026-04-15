@@ -214,6 +214,10 @@ impl AppConfig {
             errors.push("libgen.offline.load.staging_schema_prefix must not be empty".to_string());
         }
 
+        if self.libgen.offline.load.dataset_id_template.trim().is_empty() {
+            errors.push("libgen.offline.load.dataset_id_template must not be empty".to_string());
+        }
+
         if self.libgen.dump.max_statement_bytes == 0 {
             errors.push("libgen.dump.max_statement_bytes must be > 0".to_string());
         }
@@ -592,6 +596,8 @@ pub struct LibgenConfig {
     #[serde(default)]
     pub tables: LibgenTablesConfig,
     #[serde(default)]
+    pub init: LibgenInitConfig,
+    #[serde(default)]
     pub offline: LibgenOfflineConfig,
     #[serde(default)]
     pub resume: LibgenResumeConfig,
@@ -605,6 +611,31 @@ impl LibgenConfig {
     fn normalize(&mut self, paths: &PathsConfig) {
         self.offline.normalize(paths);
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LibgenInitConfig {
+    #[serde(default)]
+    pub provision_tables: bool,
+    #[serde(default)]
+    pub dumps: LibgenInitDumpPaths,
+}
+
+impl Default for LibgenInitConfig {
+    fn default() -> Self {
+        Self {
+            provision_tables: false,
+            dumps: LibgenInitDumpPaths::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct LibgenInitDumpPaths {
+    #[serde(default)]
+    pub fiction: Option<String>,
+    #[serde(default)]
+    pub compact: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -659,6 +690,8 @@ pub struct LibgenOfflineLoadConfig {
     pub strategy: LibgenOfflineLoadStrategy,
     #[serde(default = "default_libgen_offline_staging_schema_prefix")]
     pub staging_schema_prefix: String,
+    #[serde(default = "default_libgen_offline_dataset_id_template")]
+    pub dataset_id_template: String,
     #[serde(default = "default_true")]
     pub keep_old_tables: bool,
     #[serde(default)]
@@ -672,6 +705,7 @@ impl Default for LibgenOfflineLoadConfig {
         Self {
             strategy: default_libgen_offline_load_strategy(),
             staging_schema_prefix: default_libgen_offline_staging_schema_prefix(),
+            dataset_id_template: default_libgen_offline_dataset_id_template(),
             keep_old_tables: true,
             drop_old_tables_on_success: false,
             drop_staging_schema_on_success: false,
@@ -685,6 +719,10 @@ fn default_libgen_offline_load_strategy() -> LibgenOfflineLoadStrategy {
 
 fn default_libgen_offline_staging_schema_prefix() -> String {
     "src_libgen_staging".to_string()
+}
+
+fn default_libgen_offline_dataset_id_template() -> String {
+    "libgen-{kind}".to_string()
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]

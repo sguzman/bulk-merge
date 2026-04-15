@@ -70,9 +70,16 @@ Environment overrides:
 - `libgen.offline.layout`: `kind_subdir|flat` controls whether offline artifacts are written into `${out_dir_default}/{fiction|compact}` or directly into `out_dir_default`.
 - `libgen.offline.load.strategy`: currently `staging_swap` (load into a staging schema, then rename into place).
 - `libgen.offline.load.staging_schema_prefix`: prefix used to create per-run staging schemas.
+- `libgen.offline.load.dataset_id_template`: default dataset id template used when `--dataset-id` and `libgen.dump.dataset_id` are absent (supports `{kind}`).
 - `libgen.offline.load.keep_old_tables`: keep the previous live table as `${table}__old_<run_id>` when swapping in staging tables.
 - `libgen.offline.load.drop_old_tables_on_success`: drop any kept old tables at the end of a successful load (default false).
 - `libgen.offline.load.drop_staging_schema_on_success`: drop the per-run staging schema after a successful load (default false).
+
+## LibGen init-db provisioning (optional)
+
+- `libgen.init.provision_tables`: when true, `bulk-merge init-db` will scan configured dump paths for `CREATE TABLE` statements and provision the corresponding Postgres tables (no row ingest).
+- `libgen.init.dumps.fiction`: dump path used for schema discovery for fiction tables (optional).
+- `libgen.init.dumps.compact`: dump path used for schema discovery for compact tables (optional).
 
 ## LibGen incremental strategy
 

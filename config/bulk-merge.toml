@@ -78,6 +78,13 @@ error_preview_bytes = 256
 fiction_prefix = "fiction_"
 compact_prefix = "compact_"
 
+[libgen.init]
+# If enabled, `bulk-merge init-db` will scan the configured dump paths for CREATE TABLE statements
+# and provision the corresponding Postgres tables (without ingesting any rows).
+provision_tables = false
+# Empty strings are treated as "unset".
+dumps = { fiction = "", compact = "" }
+
 [libgen.offline]
 # If omitted, defaults to `${paths.cache_dir}/libgen-offline` unless `paths.cache_policy="never"`.
 # out_dir_default = ".cache/bulk-merge/libgen-offline"
@@ -86,6 +93,7 @@ layout = "kind_subdir" # "kind_subdir" | "flat"
 [libgen.offline.load]
 strategy = "staging_swap"
 staging_schema_prefix = "src_libgen_staging"
+dataset_id_template = "libgen-{kind}"
 keep_old_tables = true
 drop_old_tables_on_success = false
 drop_staging_schema_on_success = false

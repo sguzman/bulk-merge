@@ -11,7 +11,7 @@ Scope notes:
 ## CLI Commands (Operator Surface)
 
 - [x] `bulk-merge init-db` provisions `bm_meta` and the `src_libgen` schema.
-- [ ] `bulk-merge init-db` provisions LibGen kind-specific tables (once schema discovery exists).
+- [x] `bulk-merge init-db` provisions LibGen kind-specific tables (once schema discovery exists).
 - [x] `bulk-merge libgen ingest ...` registers an `import_run` (Phase 1 scaffolding).
 - [x] `bulk-merge libgen ingest ...` provisions dedicated tables from dump schema (`CREATE TABLE` discovery).
 - [x] `bulk-merge libgen ingest ...` ingests row data into the dedicated tables.
@@ -27,10 +27,10 @@ Scope notes:
 ## Configuration & Policies (Control Pane)
 
 - [x] TOML config includes Postgres connection details (credentials/host/db) and core tunables (pooling, batching, retries).
-- [ ] TOML config includes full schema/table naming policy for LibGen provisioned tables.
+- [x] TOML config includes full schema/table naming policy for LibGen provisioned tables.
   - [x] Configurable `paths.cache_dir` base for all intermediate artifacts and temp outputs.
-  - [ ] Configurable offline artifact layout under cache dir (per-kind subdir naming policy).
-  - [ ] Configurable dataset naming policy for offline load (how `dataset_id` is chosen when absent).
+  - [x] Configurable offline artifact layout under cache dir (per-kind subdir naming policy).
+  - [x] Configurable dataset naming policy for offline load (how `dataset_id` is chosen when absent).
 - [x] TOML config includes LibGen dump kind and resumability/incremental strategy knobs (initial surface).
 - [x] TOML config includes LibGen dump path and dataset_id as first-class settings.
 - [x] CLI can override high-value runtime knobs (log level/format, config path, dry-run).
