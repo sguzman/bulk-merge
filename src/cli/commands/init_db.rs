@@ -31,6 +31,7 @@ pub async fn run(config: &AppConfig) -> anyhow::Result<()> {
                     &pg_table,
                     def,
                     config.libgen.incremental.strategy == "row_hash" && config.libgen.incremental.row_hash.enabled,
+                    config.libgen.typing.mode,
                 )
                 .await?;
             }
@@ -51,6 +52,7 @@ pub async fn run(config: &AppConfig) -> anyhow::Result<()> {
                     &pg_table,
                     def,
                     config.libgen.incremental.strategy == "row_hash" && config.libgen.incremental.row_hash.enabled,
+                    config.libgen.typing.mode,
                 )
                 .await?;
             }

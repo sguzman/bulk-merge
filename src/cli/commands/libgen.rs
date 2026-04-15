@@ -295,6 +295,52 @@ pub async fn stats(config: &AppConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[instrument(skip_all, fields(kind = ?kind))]
+pub async fn reset(
+    args: &Args,
+    config: &AppConfig,
+    kind: crate::cli::args::LibgenResetKindArg,
+) -> anyhow::Result<()> {
+    if args.dry_run || config.execution.dry_run_default {
+        info!("dry-run: would drop libgen-derived tables");
+        return Ok(());
+    }
+
+    let db = Db::connect(config).await?;
+    db.migrate().await?;
+
+    let overall_prefix = config.postgres.table_prefix.clone().unwrap_or_default();
+    let mut prefixes: Vec<String> = Vec::new();
+    match kind {
+        crate::cli::args::LibgenResetKindArg::Fiction => {
+            prefixes.push(format!("{overall_prefix}{}", config.libgen.tables.fiction_prefix));
+        }
+        crate::cli::args::LibgenResetKindArg::Compact => {
+            prefixes.push(format!("{overall_prefix}{}", config.libgen.tables.compact_prefix));
+        }
+        crate::cli::args::LibgenResetKindArg::All => {
+            prefixes.push(format!("{overall_prefix}{}", config.libgen.tables.fiction_prefix));
+            prefixes.push(format!("{overall_prefix}{}", config.libgen.tables.compact_prefix));
+        }
+    }
+
+    db.ensure_schema(&config.postgres.schema_libgen).await?;
+    for prefix in prefixes {
+        let tables = db
+            .list_tables_with_prefix(&config.postgres.schema_libgen, &prefix)
+            .await
+            .with_context(|| format!("failed listing tables with prefix `{}`", prefix))?;
+        info!(prefix = %prefix, tables = tables.len(), "reset: dropping tables");
+        for t in tables {
+            db.drop_table_if_exists(&config.postgres.schema_libgen, &t)
+                .await
+                .with_context(|| format!("failed dropping table `{}`", t))?;
+        }
+    }
+
+    Ok(())
+}
+
 #[instrument(skip_all, fields(kind = ?kind, mysql_table = %mysql_table, limit = limit))]
 pub async fn sample(
     config: &AppConfig,

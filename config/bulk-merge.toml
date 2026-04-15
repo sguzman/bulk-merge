@@ -118,6 +118,10 @@ row_hash = { enabled = false, algorithm = "sha256" }
 enabled = true
 store_other_statements = true
 
+[libgen.typing]
+mode = "best_effort" # "best_effort" | "text"
+unrepresentable_policy = "null" # "null" | "text" | "error"
+
 [postgres.indexing]
 create_after_load = true
 concurrent = false

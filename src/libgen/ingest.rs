@@ -1,6 +1,7 @@
 use crate::config::{AppConfig, LibgenDumpKind};
 use crate::db::Db;
 use crate::libgen::mysql_dump::{parse_insert_into, seek_to_offset, statement_preview, StatementReader, TableDef, Value};
+use crate::libgen::typing::coerce_value_best_effort;
 use crate::progress::{ProgressConfig, ProgressTicker};
 use anyhow::Context as _;
 use sha2::{Digest as _, Sha256};
@@ -130,8 +131,23 @@ pub async fn ingest_dump_rows(
 
         let pg_table = plan.pg_table_for_mysql(&insert.table);
         let mut cols: Vec<String> = def.columns.iter().map(|c| c.name.clone()).collect();
+        let col_types: Vec<crate::db::PgTargetType> = def
+            .columns
+            .iter()
+            .map(|c| {
+                if config.libgen.typing.mode == crate::config::LibgenTypingMode::Text {
+                    crate::db::PgTargetType::Text
+                } else {
+                    crate::db::mysql_type_to_postgres(&c.mysql_type).0
+                }
+            })
+            .collect();
         if plan.row_hash_enabled {
             cols.push("_bm_row_hash".to_string());
+        }
+        let mut col_types = col_types;
+        if plan.row_hash_enabled {
+            col_types.push(crate::db::PgTargetType::Text);
         }
 
         let pk_col = if plan.mode == IngestMode::Update && plan.apply_deletes {
@@ -161,13 +177,25 @@ pub async fn ingest_dump_rows(
         for row in insert.rows {
             let mut out_row: Vec<Option<String>> = Vec::with_capacity(row.len());
             let mut pk_value_for_seen: Option<String> = None;
-            for v in row {
+            for (col_idx, v) in row.into_iter().enumerate() {
                 match v {
                     Value::Null => out_row.push(None),
                     Value::Text(s) => {
                         let s = sanitize_text(config, s);
-                        chunk_bytes = chunk_bytes.saturating_add(s.len());
-                        out_row.push(Some(s));
+                        let val = if config.libgen.typing.mode == crate::config::LibgenTypingMode::Text {
+                            Some(s)
+                        } else {
+                            let ty = col_types.get(col_idx).copied().unwrap_or(crate::db::PgTargetType::Text);
+                            coerce_value_best_effort(
+                                ty,
+                                s,
+                                config.libgen.typing.unrepresentable_policy,
+                            )?
+                        };
+                        if let Some(ref v) = val {
+                            chunk_bytes = chunk_bytes.saturating_add(v.len());
+                        }
+                        out_row.push(val);
                     }
                 }
             }
@@ -205,15 +233,28 @@ pub async fn ingest_dump_rows(
                 match plan.mode {
                     IngestMode::Ingest => {
                         if plan.row_hash_enabled {
-                            db.insert_rows_text_on_conflict_do_nothing(
-                                &config.postgres.schema_libgen,
-                                &pg_table,
-                                &cols,
-                                &["_bm_row_hash".to_string()],
-                                &chunk,
-                            )
-                            .await
-                            .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                            if config.libgen.typing.mode == crate::config::LibgenTypingMode::Text {
+                                db.insert_rows_text_on_conflict_do_nothing(
+                                    &config.postgres.schema_libgen,
+                                    &pg_table,
+                                    &cols,
+                                    &["_bm_row_hash".to_string()],
+                                    &chunk,
+                                )
+                                .await
+                                .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                            } else {
+                                db.insert_rows_from_text_with_types_on_conflict_do_nothing(
+                                    &config.postgres.schema_libgen,
+                                    &pg_table,
+                                    &cols,
+                                    &col_types,
+                                    &["_bm_row_hash".to_string()],
+                                    &chunk,
+                                )
+                                .await
+                                .with_context(|| format!("failed inserting (typed dedupe) into `{}`", pg_table))?;
+                            }
                         } else {
                             match config.execution.loader.kind {
                                 crate::config::LoaderKind::Copy => {
@@ -227,39 +268,77 @@ pub async fn ingest_dump_rows(
                                 .with_context(|| format!("failed COPY into `{}`", pg_table))?;
                                 }
                                 crate::config::LoaderKind::Insert => {
-                                db.insert_rows_text(
-                                    &config.postgres.schema_libgen,
-                                    &pg_table,
-                                    &cols,
-                                    &chunk,
-                                )
-                                .await
-                                .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                                if config.libgen.typing.mode == crate::config::LibgenTypingMode::Text {
+                                    db.insert_rows_text(
+                                        &config.postgres.schema_libgen,
+                                        &pg_table,
+                                        &cols,
+                                        &chunk,
+                                    )
+                                    .await
+                                    .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                                } else {
+                                    db.insert_rows_from_text_with_types(
+                                        &config.postgres.schema_libgen,
+                                        &pg_table,
+                                        &cols,
+                                        &col_types,
+                                        &chunk,
+                                    )
+                                    .await
+                                    .with_context(|| format!("failed inserting (typed) rows into `{}`", pg_table))?;
+                                }
                                 }
                             }
                         }
                     }
                     IngestMode::Update => {
                         if plan.row_hash_enabled {
-                            db.insert_rows_text_on_conflict_do_nothing(
-                                &config.postgres.schema_libgen,
-                                &pg_table,
-                                &cols,
-                                &plan.conflict_columns,
-                                &chunk,
-                            )
-                            .await
-                            .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                            if config.libgen.typing.mode == crate::config::LibgenTypingMode::Text {
+                                db.insert_rows_text_on_conflict_do_nothing(
+                                    &config.postgres.schema_libgen,
+                                    &pg_table,
+                                    &cols,
+                                    &plan.conflict_columns,
+                                    &chunk,
+                                )
+                                .await
+                                .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                            } else {
+                                db.insert_rows_from_text_with_types_on_conflict_do_nothing(
+                                    &config.postgres.schema_libgen,
+                                    &pg_table,
+                                    &cols,
+                                    &col_types,
+                                    &plan.conflict_columns,
+                                    &chunk,
+                                )
+                                .await
+                                .with_context(|| format!("failed inserting (typed dedupe) into `{}`", pg_table))?;
+                            }
                         } else {
-                            db.upsert_rows_text(
-                                &config.postgres.schema_libgen,
-                                &pg_table,
-                                &cols,
-                                &plan.conflict_columns,
-                                &chunk,
-                            )
-                            .await
-                            .with_context(|| format!("failed upserting rows into `{}`", pg_table))?;
+                            if config.libgen.typing.mode == crate::config::LibgenTypingMode::Text {
+                                db.upsert_rows_text(
+                                    &config.postgres.schema_libgen,
+                                    &pg_table,
+                                    &cols,
+                                    &plan.conflict_columns,
+                                    &chunk,
+                                )
+                                .await
+                                .with_context(|| format!("failed upserting rows into `{}`", pg_table))?;
+                            } else {
+                                db.upsert_rows_from_text_with_types(
+                                    &config.postgres.schema_libgen,
+                                    &pg_table,
+                                    &cols,
+                                    &col_types,
+                                    &plan.conflict_columns,
+                                    &chunk,
+                                )
+                                .await
+                                .with_context(|| format!("failed upserting (typed) rows into `{}`", pg_table))?;
+                            }
                         }
                     }
                 }
@@ -282,15 +361,28 @@ pub async fn ingest_dump_rows(
             match plan.mode {
                 IngestMode::Ingest => {
                     if plan.row_hash_enabled {
-                        db.insert_rows_text_on_conflict_do_nothing(
-                            &config.postgres.schema_libgen,
-                            &pg_table,
-                            &cols,
-                            &["_bm_row_hash".to_string()],
-                            &chunk,
-                        )
-                        .await
-                        .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                        if config.libgen.typing.mode == crate::config::LibgenTypingMode::Text {
+                            db.insert_rows_text_on_conflict_do_nothing(
+                                &config.postgres.schema_libgen,
+                                &pg_table,
+                                &cols,
+                                &["_bm_row_hash".to_string()],
+                                &chunk,
+                            )
+                            .await
+                            .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                        } else {
+                            db.insert_rows_from_text_with_types_on_conflict_do_nothing(
+                                &config.postgres.schema_libgen,
+                                &pg_table,
+                                &cols,
+                                &col_types,
+                                &["_bm_row_hash".to_string()],
+                                &chunk,
+                            )
+                            .await
+                            .with_context(|| format!("failed inserting (typed dedupe) into `{}`", pg_table))?;
+                        }
                     } else {
                         match config.execution.loader.kind {
                             crate::config::LoaderKind::Copy => {
@@ -304,39 +396,77 @@ pub async fn ingest_dump_rows(
                             .with_context(|| format!("failed COPY into `{}`", pg_table))?;
                             }
                             crate::config::LoaderKind::Insert => {
-                            db.insert_rows_text(
-                                &config.postgres.schema_libgen,
-                                &pg_table,
-                                &cols,
-                                &chunk,
-                            )
-                            .await
-                            .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                            if config.libgen.typing.mode == crate::config::LibgenTypingMode::Text {
+                                db.insert_rows_text(
+                                    &config.postgres.schema_libgen,
+                                    &pg_table,
+                                    &cols,
+                                    &chunk,
+                                )
+                                .await
+                                .with_context(|| format!("failed inserting rows into `{}`", pg_table))?;
+                            } else {
+                                db.insert_rows_from_text_with_types(
+                                    &config.postgres.schema_libgen,
+                                    &pg_table,
+                                    &cols,
+                                    &col_types,
+                                    &chunk,
+                                )
+                                .await
+                                .with_context(|| format!("failed inserting (typed) rows into `{}`", pg_table))?;
+                            }
                             }
                         }
                     }
                 }
                 IngestMode::Update => {
                     if plan.row_hash_enabled {
-                        db.insert_rows_text_on_conflict_do_nothing(
-                            &config.postgres.schema_libgen,
-                            &pg_table,
-                            &cols,
-                            &plan.conflict_columns,
-                            &chunk,
-                        )
-                        .await
-                        .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                        if config.libgen.typing.mode == crate::config::LibgenTypingMode::Text {
+                            db.insert_rows_text_on_conflict_do_nothing(
+                                &config.postgres.schema_libgen,
+                                &pg_table,
+                                &cols,
+                                &plan.conflict_columns,
+                                &chunk,
+                            )
+                            .await
+                            .with_context(|| format!("failed inserting (dedupe) into `{}`", pg_table))?;
+                        } else {
+                            db.insert_rows_from_text_with_types_on_conflict_do_nothing(
+                                &config.postgres.schema_libgen,
+                                &pg_table,
+                                &cols,
+                                &col_types,
+                                &plan.conflict_columns,
+                                &chunk,
+                            )
+                            .await
+                            .with_context(|| format!("failed inserting (typed dedupe) into `{}`", pg_table))?;
+                        }
                     } else {
-                        db.upsert_rows_text(
-                            &config.postgres.schema_libgen,
-                            &pg_table,
-                            &cols,
-                            &plan.conflict_columns,
-                            &chunk,
-                        )
-                        .await
-                        .with_context(|| format!("failed upserting rows into `{}`", pg_table))?;
+                        if config.libgen.typing.mode == crate::config::LibgenTypingMode::Text {
+                            db.upsert_rows_text(
+                                &config.postgres.schema_libgen,
+                                &pg_table,
+                                &cols,
+                                &plan.conflict_columns,
+                                &chunk,
+                            )
+                            .await
+                            .with_context(|| format!("failed upserting rows into `{}`", pg_table))?;
+                        } else {
+                            db.upsert_rows_from_text_with_types(
+                                &config.postgres.schema_libgen,
+                                &pg_table,
+                                &cols,
+                                &col_types,
+                                &plan.conflict_columns,
+                                &chunk,
+                            )
+                            .await
+                            .with_context(|| format!("failed upserting (typed) rows into `{}`", pg_table))?;
+                        }
                     }
                 }
             }

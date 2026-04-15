@@ -39,6 +39,7 @@ pub async fn provision_tables_from_dump(
             &pg_table,
             def,
             config.libgen.incremental.strategy == "row_hash" && config.libgen.incremental.row_hash.enabled,
+            config.libgen.typing.mode,
         )
             .await
             .with_context(|| format!("failed creating table `{}`", pg_table))?;

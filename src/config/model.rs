@@ -623,12 +623,59 @@ pub struct LibgenConfig {
     pub incremental: LibgenIncrementalConfig,
     #[serde(default)]
     pub raw: LibgenRawConfig,
+    #[serde(default)]
+    pub typing: LibgenTypingConfig,
 }
 
 impl LibgenConfig {
     fn normalize(&mut self, paths: &PathsConfig) {
         self.offline.normalize(paths);
         self.init.normalize();
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LibgenTypingConfig {
+    #[serde(default = "default_libgen_typing_mode")]
+    pub mode: LibgenTypingMode,
+    #[serde(default)]
+    pub unrepresentable_policy: LibgenUnrepresentablePolicy,
+}
+
+impl Default for LibgenTypingConfig {
+    fn default() -> Self {
+        Self {
+            mode: default_libgen_typing_mode(),
+            unrepresentable_policy: LibgenUnrepresentablePolicy::Null,
+        }
+    }
+}
+
+fn default_libgen_typing_mode() -> LibgenTypingMode {
+    LibgenTypingMode::BestEffort
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LibgenTypingMode {
+    Text,
+    BestEffort,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LibgenUnrepresentablePolicy {
+    /// Store NULL when a value can't be coerced to the target type.
+    Null,
+    /// Store the original text value (may fail if column is typed and Postgres can't cast it).
+    Text,
+    /// Fail the run when a value can't be coerced to the target type.
+    Error,
+}
+
+impl Default for LibgenUnrepresentablePolicy {
+    fn default() -> Self {
+        Self::Null
     }
 }
 

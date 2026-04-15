@@ -69,6 +69,11 @@ vary across environments should be expressed here rather than hardcoded.
 - [x] `libgen.dump.error_preview_bytes` (bounded statement preview for parse errors).
 - [x] `libgen.dump.sanitize_nul_bytes` and `libgen.dump.nul_replacement` (Postgres text compatibility).
 
+## LibGen typing policy
+
+- [x] `libgen.typing.mode` (best-effort typed columns vs all-text).
+- [x] `libgen.typing.unrepresentable_policy` (what to do when a value can't be coerced to the target type).
+
 ## LibGen init-db provisioning
 
 - [x] `libgen.init.provision_tables` and `libgen.init.dumps` (optional schema-only provisioning during `init-db`).

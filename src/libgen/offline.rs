@@ -4,6 +4,7 @@ use crate::libgen::mysql_dump::{
     parse_create_table, parse_insert_into_values_input, seek_to_offset, statement_preview, StatementReader, TableDef,
     Value,
 };
+use crate::libgen::typing::coerce_value_best_effort;
 use crate::progress::{ProgressConfig, ProgressTicker};
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
@@ -94,6 +95,7 @@ pub fn convert_dump_to_tsv(
     let overall_prefix = config.postgres.table_prefix.clone().unwrap_or_default();
 
     let mut table_defs: BTreeMap<String, TableDef> = BTreeMap::new();
+    let mut table_types: BTreeMap<String, Vec<crate::db::PgTargetType>> = BTreeMap::new();
     let mut writers: BTreeMap<String, BufWriter<File>> = BTreeMap::new();
     let mut last_checkpoint_offset: u64 = state.dump_offset;
     let checkpoint_interval = config.libgen.offline.convert.checkpoint_interval_bytes.max(1);
@@ -122,7 +124,19 @@ pub fn convert_dump_to_tsv(
             let preview = statement_preview(&stmt, config.libgen.dump.error_preview_bytes as usize);
             format!("failed parsing CREATE TABLE at offset_end={off}: {preview}")
         })? {
-            table_defs.entry(def.name.clone()).or_insert(def);
+            let name = def.name.clone();
+            table_defs.entry(name.clone()).or_insert(def);
+            // (Re)compute best-effort column type hints when typing is enabled.
+            if config.libgen.typing.mode == crate::config::LibgenTypingMode::BestEffort {
+                if let Some(def) = table_defs.get(&name) {
+                    let tys: Vec<crate::db::PgTargetType> = def
+                        .columns
+                        .iter()
+                        .map(|c| crate::db::mysql_type_to_postgres(&c.mysql_type).0)
+                        .collect();
+                    table_types.insert(name, tys);
+                }
+            }
             continue;
         }
 
@@ -146,6 +160,8 @@ pub fn convert_dump_to_tsv(
                 .expect("open table tsv");
             BufWriter::new(f)
         });
+        let types_for_table: Option<&[crate::db::PgTargetType]> =
+            table_types.get(&table_name).map(|v| v.as_slice());
 
         // Emit TSV rows in a COPY-friendly format:
         // format csv, delimiter \t, null \N, quote ", escape "
@@ -162,7 +178,7 @@ pub fn convert_dump_to_tsv(
                 break;
             }
             let (row, rest_row) = crate::libgen::mysql_dump::parse_row(after_values)?;
-            write_row_tsv(config, w, &row)?;
+            write_row_tsv(config, w, &row, types_for_table)?;
             after_values = rest_row;
         }
 
@@ -199,7 +215,12 @@ pub fn convert_dump_to_tsv(
     Ok(manifest)
 }
 
-fn write_row_tsv<W: Write>(config: &AppConfig, w: &mut W, row: &[Value]) -> anyhow::Result<()> {
+fn write_row_tsv<W: Write>(
+    config: &AppConfig,
+    w: &mut W,
+    row: &[Value],
+    column_types: Option<&[crate::db::PgTargetType]>,
+) -> anyhow::Result<()> {
     for (i, v) in row.iter().enumerate() {
         if i > 0 {
             w.write_all(b"\t")?;
@@ -208,9 +229,23 @@ fn write_row_tsv<W: Write>(config: &AppConfig, w: &mut W, row: &[Value]) -> anyh
             Value::Null => w.write_all(b"\\N")?,
             Value::Text(s) => {
                 let s = sanitize_text(config, s.clone());
+                let out = if config.libgen.typing.mode == crate::config::LibgenTypingMode::Text {
+                    Some(s)
+                } else {
+                    let ty = column_types
+                        .and_then(|t| t.get(i).copied())
+                        .unwrap_or(crate::db::PgTargetType::Text);
+                    coerce_value_best_effort(ty, s, config.libgen.typing.unrepresentable_policy)?
+                };
+
+                let Some(out) = out else {
+                    w.write_all(b"\\N")?;
+                    continue;
+                };
+
                 w.write_all(b"\"")?;
                 // Escape by doubling quotes.
-                for ch in s.chars() {
+                for ch in out.chars() {
                     if ch == '"' {
                         w.write_all(b"\"\"")?;
                     } else {
@@ -299,7 +334,7 @@ async fn load_tsv_staging_swap(
         // Stage (create + load + index) unless already staged/swapped.
         if stage.as_deref() != Some("staged") && stage.as_deref() != Some("swapped") {
             info!(table = %pg_table, schema = %schema_staging, "staging_table");
-            db.create_table_from_def(&schema_staging, &pg_table, def, false)
+            db.create_table_from_def(&schema_staging, &pg_table, def, false, config.libgen.typing.mode)
                 .await
                 .with_context(|| format!("failed creating staging table `{}`", pg_table))?;
 

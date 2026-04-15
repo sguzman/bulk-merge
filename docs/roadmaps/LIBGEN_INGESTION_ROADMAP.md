@@ -21,6 +21,7 @@ Scope notes:
 - [x] `bulk-merge libgen stats` prints counts and last-run info.
 - [x] `bulk-merge libgen sample` prints a small sample of rows (Phase 1: JSON via `row_to_json`).
 - [x] `bulk-merge libgen validate` runs minimal invariants and reports failures (Phase 1: row count > 0).
+- [x] `bulk-merge libgen reset --kind {fiction|compact|all}` drops derived LibGen tables so they can be recreated with new policies (e.g. typing changes).
 - [x] `bulk-merge libgen load-status` reports offline staging/swap progress for an import run id.
 - [x] `bulk-merge libgen load` supports resuming a prior offline load (`--import-run-id` / `--resume-latest`).
 
@@ -47,7 +48,7 @@ Scope notes:
 - [x] Provision kind-specific table(s) on demand from `CREATE TABLE` schema discovery.
 - [x] Provision raw landing table(s) for provenance-preserving reprocessing (`src_libgen.raw_statement`).
 - [x] Store provenance for raw statements (`import_run_id`, byte offset, sha256, kind, mysql_table).
-- [x] Map LibGen table columns 1-to-1 from the MySQL dump into PostgreSQL columns (Phase 1: store as `text` for ingest robustness).
+- [x] Map LibGen table columns 1-to-1 from the MySQL dump into PostgreSQL columns (Phase 1: best-effort typed mapping; invalid values become NULL).
 
 ## MySQL Dump Parser (Supported Subset)
 

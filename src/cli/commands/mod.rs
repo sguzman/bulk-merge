@@ -73,6 +73,7 @@ pub async fn dispatch(args: Args, config: AppConfig) -> anyhow::Result<()> {
             LibgenCommand::LoadStatus { import_run_id } => {
                 libgen::offline_load_status(&config, import_run_id).await
             }
+            LibgenCommand::Reset { kind } => libgen::reset(&args, &config, kind).await,
         },
     }
 }

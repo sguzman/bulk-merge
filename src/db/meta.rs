@@ -10,6 +10,19 @@ pub struct Db {
     pool: PgPool,
 }
 
+fn pg_cast_sql(ty: PgTargetType) -> &'static str {
+    match ty {
+        PgTargetType::Text => "text",
+        PgTargetType::Int4 => "integer",
+        PgTargetType::Int8 => "bigint",
+        PgTargetType::Numeric => "numeric",
+        PgTargetType::Float8 => "double precision",
+        PgTargetType::Bool => "boolean",
+        PgTargetType::Timestamp => "timestamp",
+        PgTargetType::Date => "date",
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum ImportRunStatus {
     Pending,
@@ -27,6 +40,23 @@ impl ImportRunStatus {
             ImportRunStatus::Succeeded => "succeeded",
         }
     }
+}
+
+fn typed_select_list(columns: &[String], types: &[PgTargetType]) -> anyhow::Result<String> {
+    if columns.len() != types.len() {
+        anyhow::bail!(
+            "columns/types length mismatch: {} vs {}",
+            columns.len(),
+            types.len()
+        );
+    }
+    let mut parts: Vec<String> = Vec::with_capacity(columns.len());
+    for (c, ty) in columns.iter().zip(types.iter().copied()) {
+        let qc = quote_ident(c);
+        let ty_sql = pg_cast_sql(ty);
+        parts.push(format!("(v.{qc})::{ty_sql}"));
+    }
+    Ok(parts.join(", "))
 }
 
 impl Db {
@@ -371,11 +401,15 @@ where id = $1
         table: &str,
         def: &crate::libgen::mysql_dump::TableDef,
         include_row_hash: bool,
+        typing_mode: crate::config::LibgenTypingMode,
     ) -> anyhow::Result<()> {
         let mut cols_sql: Vec<String> = Vec::with_capacity(def.columns.len());
         for col in &def.columns {
             let col_name = quote_ident(&col.name);
-            let ty = map_mysql_type_to_postgres(&col.mysql_type);
+            let ty = match typing_mode {
+                crate::config::LibgenTypingMode::Text => "text",
+                crate::config::LibgenTypingMode::BestEffort => mysql_type_to_postgres(&col.mysql_type).1,
+            };
             cols_sql.push(format!("{col_name} {ty}"));
         }
         if include_row_hash {
@@ -436,6 +470,62 @@ where id = $1
     }
 
     #[instrument(skip_all, fields(schema = schema, table = table, rows = rows.len()))]
+    pub async fn insert_rows_from_text_with_types(
+        &self,
+        schema: &str,
+        table: &str,
+        columns: &[String],
+        column_types: &[PgTargetType],
+        rows: &[Vec<Option<String>>],
+    ) -> anyhow::Result<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let expected_cols = columns.len();
+        if column_types.len() != expected_cols {
+            anyhow::bail!(
+                "column_types length mismatch for insert: expected {expected_cols}, got {}",
+                column_types.len()
+            );
+        }
+        for r in rows {
+            if r.len() != expected_cols {
+                anyhow::bail!(
+                    "row length mismatch for insert: expected {expected_cols}, got {}",
+                    r.len()
+                );
+            }
+        }
+
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let select_list = typed_select_list(columns, column_types)?;
+        let alias_cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut qb = sqlx::QueryBuilder::new(format!(
+            "insert into {schema_q}.{table_q} ({cols_sql}) select {select_list} from ("
+        ));
+        qb.push_values(rows, |mut b, row| {
+            for val in row {
+                b.push_bind(val);
+            }
+        });
+        qb.push(format!(") as v({alias_cols_sql})"));
+
+        qb.build().execute(&self.pool).await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, rows = rows.len()))]
     pub async fn insert_rows_text_on_conflict_do_nothing(
         &self,
         schema: &str,
@@ -488,6 +578,79 @@ where id = $1
             }
         });
         qb.push(format!(" on conflict ({conflict_sql}) do nothing"));
+
+        qb.build().execute(&self.pool).await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, rows = rows.len()))]
+    pub async fn insert_rows_from_text_with_types_on_conflict_do_nothing(
+        &self,
+        schema: &str,
+        table: &str,
+        columns: &[String],
+        column_types: &[PgTargetType],
+        conflict_columns: &[String],
+        rows: &[Vec<Option<String>>],
+    ) -> anyhow::Result<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        if conflict_columns.is_empty() {
+            anyhow::bail!("conflict_columns must not be empty");
+        }
+
+        let expected_cols = columns.len();
+        if column_types.len() != expected_cols {
+            anyhow::bail!(
+                "column_types length mismatch for insert: expected {expected_cols}, got {}",
+                column_types.len()
+            );
+        }
+        for r in rows {
+            if r.len() != expected_cols {
+                anyhow::bail!(
+                    "row length mismatch for insert: expected {expected_cols}, got {}",
+                    r.len()
+                );
+            }
+        }
+        for c in conflict_columns {
+            if !columns.iter().any(|x| x == c) {
+                anyhow::bail!("conflict column `{c}` not present in columns list");
+            }
+        }
+
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let select_list = typed_select_list(columns, column_types)?;
+        let alias_cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let conflict_sql = conflict_columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut qb = sqlx::QueryBuilder::new(format!(
+            "insert into {schema_q}.{table_q} ({cols_sql}) select {select_list} from ("
+        ));
+        qb.push_values(rows, |mut b, row| {
+            for val in row {
+                b.push_bind(val);
+            }
+        });
+        qb.push(format!(
+            ") as v({alias_cols_sql}) on conflict ({conflict_sql}) do nothing"
+        ));
 
         qb.build().execute(&self.pool).await?;
         Ok(())
@@ -687,6 +850,87 @@ where id = $1
         });
         qb.push(format!(
             " on conflict ({conflict_sql}) do update set {update_sql}"
+        ));
+
+        qb.build().execute(&self.pool).await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table, rows = rows.len()))]
+    pub async fn upsert_rows_from_text_with_types(
+        &self,
+        schema: &str,
+        table: &str,
+        columns: &[String],
+        column_types: &[PgTargetType],
+        conflict_columns: &[String],
+        rows: &[Vec<Option<String>>],
+    ) -> anyhow::Result<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        if conflict_columns.is_empty() {
+            anyhow::bail!("conflict_columns must not be empty for upsert");
+        }
+
+        let expected_cols = columns.len();
+        if column_types.len() != expected_cols {
+            anyhow::bail!(
+                "column_types length mismatch for upsert: expected {expected_cols}, got {}",
+                column_types.len()
+            );
+        }
+        for r in rows {
+            if r.len() != expected_cols {
+                anyhow::bail!(
+                    "row length mismatch for upsert: expected {expected_cols}, got {}",
+                    r.len()
+                );
+            }
+        }
+        for c in conflict_columns {
+            if !columns.iter().any(|x| x == c) {
+                anyhow::bail!("conflict column `{c}` not present in columns list");
+            }
+        }
+
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let select_list = typed_select_list(columns, column_types)?;
+        let alias_cols_sql = columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let conflict_sql = conflict_columns
+            .iter()
+            .map(|c| quote_ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let update_sql = columns
+            .iter()
+            .map(|c| {
+                let qc = quote_ident(c);
+                format!("{qc} = excluded.{qc}")
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let mut qb = sqlx::QueryBuilder::new(format!(
+            "insert into {schema_q}.{table_q} ({cols_sql}) select {select_list} from ("
+        ));
+        qb.push_values(rows, |mut b, row| {
+            for val in row {
+                b.push_bind(val);
+            }
+        });
+        qb.push(format!(
+            ") as v({alias_cols_sql}) on conflict ({conflict_sql}) do update set {update_sql}"
         ));
 
         qb.build().execute(&self.pool).await?;
@@ -1067,7 +1311,7 @@ where source_name = $1 and dataset_id = $2 and kind = $3
         let pk_q = quote_ident(pk_column);
         let target_q = quote_ident(target_column);
         let sql = format!(
-            "select {target_q} from {schema_q}.{table_q} where {pk_q} = $1 limit 1"
+            "select {target_q} from {schema_q}.{table_q} where ({pk_q})::text = $1 limit 1"
         );
         let rec: Option<(Option<String>,)> = sqlx::query_as(&sql)
             .bind(pk_value)
@@ -1124,7 +1368,7 @@ where not exists (
   where s.import_run_id = $1
     and s.table_name = $2
     and s.pk_column = $3
-    and s.pk_value = t.{pk_q}
+    and s.pk_value = (t.{pk_q})::text
 )
 "#
         );
@@ -1143,9 +1387,46 @@ fn quote_ident(ident: &str) -> String {
     format!("\"{}\"", ident.replace('\"', "\"\""))
 }
 
-fn map_mysql_type_to_postgres(mysql: &str) -> &'static str {
-    // Phase 1 policy: map fields 1-to-1 and prioritize ingest robustness/speed.
-    // We store everything as text for now; later phases can add typed/normalized views.
-    let _ = mysql;
-    "text"
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PgTargetType {
+    Text,
+    Int4,
+    Int8,
+    Numeric,
+    Float8,
+    Bool,
+    Timestamp,
+    Date,
+}
+
+pub(crate) fn mysql_type_to_postgres(mysql: &str) -> (PgTargetType, &'static str) {
+    let t = mysql.trim().to_ascii_lowercase();
+
+    // Strip attributes like "unsigned" if present.
+    let base = t.split_whitespace().next().unwrap_or("");
+
+    let pg = if base.starts_with("tinyint(1)") || base == "boolean" || base == "bool" {
+        (PgTargetType::Bool, "boolean")
+    } else if base.starts_with("tinyint")
+        || base.starts_with("smallint")
+        || base.starts_with("mediumint")
+        || base.starts_with("int")
+        || base.starts_with("integer")
+    {
+        (PgTargetType::Int4, "integer")
+    } else if base.starts_with("bigint") {
+        (PgTargetType::Int8, "bigint")
+    } else if base.starts_with("decimal") || base.starts_with("numeric") {
+        (PgTargetType::Numeric, "numeric")
+    } else if base.starts_with("float") || base.starts_with("double") || base.starts_with("real") {
+        (PgTargetType::Float8, "double precision")
+    } else if base.starts_with("datetime") || base.starts_with("timestamp") {
+        (PgTargetType::Timestamp, "timestamp")
+    } else if base.starts_with("date") {
+        (PgTargetType::Date, "date")
+    } else {
+        (PgTargetType::Text, "text")
+    };
+
+    pg
 }

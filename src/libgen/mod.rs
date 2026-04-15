@@ -7,3 +7,4 @@ pub mod mysql_dump;
 pub mod ingest;
 pub mod offline;
 pub mod provision;
+pub(crate) mod typing;

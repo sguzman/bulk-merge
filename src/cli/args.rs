@@ -115,10 +115,23 @@ pub enum LibgenCommand {
         #[arg(long)]
         import_run_id: i64,
     },
+    /// Drop LibGen-derived tables so they can be recreated (destructive)
+    Reset {
+        /// Which LibGen kind(s) to reset.
+        #[arg(long)]
+        kind: LibgenResetKindArg,
+    },
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy)]
 pub enum LibgenDumpKindArg {
     Fiction,
     Compact,
+}
+
+#[derive(ValueEnum, Debug, Clone, Copy)]
+pub enum LibgenResetKindArg {
+    Fiction,
+    Compact,
+    All,
 }

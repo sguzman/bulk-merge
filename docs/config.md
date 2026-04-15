@@ -110,3 +110,13 @@ Note: `row_hash` provides idempotent ingestion/de-duplication, but it does not m
 - `libgen.dump.error_preview_bytes`: max bytes of a statement preview included in parse errors for debugging.
 - `libgen.dump.sanitize_nul_bytes`: when true, replace NUL (`\\u0000`) bytes in parsed strings (Postgres `text` cannot contain NUL).
 - `libgen.dump.nul_replacement`: replacement string used when sanitizing NUL bytes (default `�`).
+
+## LibGen typing policy
+
+- `libgen.typing.mode`: `best_effort|text`
+  - `best_effort`: provision typed Postgres columns based on MySQL types; invalid values are written as NULL.
+  - `text`: provision all columns as `text` (legacy Phase 1 behavior; not recommended).
+- `libgen.typing.unrepresentable_policy`: `null|text|error`
+  - `null`: write NULL when a value can't be coerced to the target type (recommended).
+  - `text`: keep the original text value (may fail if Postgres can't cast it into a typed column).
+  - `error`: abort the run on the first unrepresentable value.
