@@ -226,6 +226,10 @@ impl AppConfig {
             errors.push("libgen.dump.error_preview_bytes must be > 0".to_string());
         }
 
+        if self.libgen.dump.sanitize_nul_bytes && self.libgen.dump.nul_replacement.is_empty() {
+            errors.push("libgen.dump.nul_replacement must not be empty when sanitize_nul_bytes=true".to_string());
+        }
+
         if self.libgen.init.provision_tables
             && self.libgen.init.dumps.fiction.is_none()
             && self.libgen.init.dumps.compact.is_none()
@@ -773,6 +777,10 @@ pub struct LibgenDumpConfig {
     pub max_statement_bytes: u64,
     #[serde(default = "default_libgen_error_preview_bytes")]
     pub error_preview_bytes: u64,
+    #[serde(default = "default_true")]
+    pub sanitize_nul_bytes: bool,
+    #[serde(default = "default_libgen_nul_replacement")]
+    pub nul_replacement: String,
     #[serde(default)]
     pub allow_invalid_utf8: bool,
 }
@@ -785,6 +793,8 @@ impl Default for LibgenDumpConfig {
             dataset_id: None,
             max_statement_bytes: default_libgen_max_statement_bytes(),
             error_preview_bytes: default_libgen_error_preview_bytes(),
+            sanitize_nul_bytes: true,
+            nul_replacement: default_libgen_nul_replacement(),
             allow_invalid_utf8: false,
         }
     }
@@ -798,6 +808,9 @@ fn default_libgen_error_preview_bytes() -> u64 {
     256
 }
 
+fn default_libgen_nul_replacement() -> String {
+    "\u{FFFD}".to_string()
+}
 #[derive(Debug, Clone, Deserialize)]
 pub struct LibgenTablesConfig {
     #[serde(default = "default_libgen_fiction_prefix")]

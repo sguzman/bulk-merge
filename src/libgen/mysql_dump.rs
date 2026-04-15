@@ -35,6 +35,7 @@ pub struct StatementReader<R> {
     buf: Vec<u8>,
     in_single_quote: bool,
     prev_was_backslash: bool,
+    scan_pos: usize,
 }
 
 impl<R: Read> StatementReader<R> {
@@ -50,6 +51,7 @@ impl<R: Read> StatementReader<R> {
             buf: Vec::with_capacity(1024 * 64),
             in_single_quote: false,
             prev_was_backslash: false,
+            scan_pos: 0,
         }
     }
 
@@ -71,6 +73,10 @@ impl<R: Read> StatementReader<R> {
             if let Some(pos) = self.find_statement_terminator_pos() {
                 let stmt_bytes: Vec<u8> = self.buf.drain(..=pos).collect();
                 let stmt = String::from_utf8_lossy(&stmt_bytes).trim().to_string();
+                // Reset quote scanning state after draining a full statement.
+                self.in_single_quote = false;
+                self.prev_was_backslash = false;
+                self.scan_pos = 0;
                 if stmt.is_empty() {
                     continue;
                 }
@@ -84,6 +90,9 @@ impl<R: Read> StatementReader<R> {
                 }
                 let stmt = String::from_utf8_lossy(&self.buf).trim().to_string();
                 self.buf.clear();
+                self.in_single_quote = false;
+                self.prev_was_backslash = false;
+                self.scan_pos = 0;
                 if stmt.is_empty() {
                     return Ok(None);
                 }
@@ -97,31 +106,56 @@ impl<R: Read> StatementReader<R> {
     }
 
     fn find_statement_terminator_pos(&mut self) -> Option<usize> {
-        for (idx, &b) in self.buf.iter().enumerate() {
-            let ch = b as char;
+        let mut idx: usize = self.scan_pos.min(self.buf.len());
+        while idx < self.buf.len() {
+            let b = self.buf[idx];
             if self.in_single_quote {
                 if self.prev_was_backslash {
                     self.prev_was_backslash = false;
+                    idx += 1;
                     continue;
                 }
-                if ch == '\\' {
+                if b == b'\\' {
+                    if idx + 1 >= self.buf.len() {
+                        // Need more bytes to determine escape target.
+                        self.scan_pos = idx;
+                        return None;
+                    }
                     self.prev_was_backslash = true;
+                    idx += 1;
                     continue;
                 }
-                if ch == '\'' {
+                if b == b'\'' {
+                    // MySQL can escape quotes by doubling them ('').
+                    if idx + 1 >= self.buf.len() {
+                        // Need more bytes to determine whether this is an escaped quote.
+                        self.scan_pos = idx;
+                        return None;
+                    }
+                    if idx + 1 < self.buf.len() && self.buf[idx + 1] == b'\'' {
+                        idx += 2;
+                        continue;
+                    }
                     self.in_single_quote = false;
+                    idx += 1;
+                    continue;
                 }
+                idx += 1;
                 continue;
             }
 
-            if ch == '\'' {
+            if b == b'\'' {
                 self.in_single_quote = true;
+                idx += 1;
                 continue;
             }
-            if ch == ';' {
+            if b == b';' {
+                self.scan_pos = idx;
                 return Some(idx);
             }
+            idx += 1;
         }
+        self.scan_pos = idx;
         None
     }
 }
@@ -307,6 +341,12 @@ fn parse_value<'a>(s: &'a str, start: usize) -> Result<(Value, usize), MySqlDump
                     continue;
                 }
                 if b == b'\'' {
+                    // MySQL can escape single quotes by doubling them ('').
+                    if i + 1 < bytes.len() && bytes[i + 1] == b'\'' {
+                        out.push(b'\'');
+                        i += 2;
+                        continue;
+                    }
                     let text = String::from_utf8_lossy(&out).to_string();
                     return Ok((Value::Text(text), i + 1));
                 }

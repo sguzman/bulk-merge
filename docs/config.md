@@ -107,3 +107,5 @@ Note: `row_hash` provides idempotent ingestion/de-duplication, but it does not m
 
 - `libgen.dump.max_statement_bytes`: hard cap for in-memory statement buffering.
 - `libgen.dump.error_preview_bytes`: max bytes of a statement preview included in parse errors for debugging.
+- `libgen.dump.sanitize_nul_bytes`: when true, replace NUL (`\\u0000`) bytes in parsed strings (Postgres `text` cannot contain NUL).
+- `libgen.dump.nul_replacement`: replacement string used when sanitizing NUL bytes (default `�`).

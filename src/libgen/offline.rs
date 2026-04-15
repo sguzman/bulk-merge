@@ -13,6 +13,16 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tracing::{info, instrument};
 
+fn sanitize_text(config: &AppConfig, s: String) -> String {
+    if !config.libgen.dump.sanitize_nul_bytes {
+        return s;
+    }
+    if !s.contains('\0') {
+        return s;
+    }
+    s.replace('\0', &config.libgen.dump.nul_replacement)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OfflineManifest {
     pub kind: String,
@@ -138,7 +148,7 @@ pub fn convert_dump_to_tsv(
         // Emit TSV rows in a COPY-friendly format:
         // format csv, delimiter \t, null \N, quote ", escape "
         for row in insert.rows {
-            write_row_tsv(w, &row)?;
+            write_row_tsv(config, w, &row)?;
         }
         w.flush()?;
 
@@ -161,7 +171,7 @@ pub fn convert_dump_to_tsv(
     Ok(manifest)
 }
 
-fn write_row_tsv<W: Write>(w: &mut W, row: &[Value]) -> anyhow::Result<()> {
+fn write_row_tsv<W: Write>(config: &AppConfig, w: &mut W, row: &[Value]) -> anyhow::Result<()> {
     for (i, v) in row.iter().enumerate() {
         if i > 0 {
             w.write_all(b"\t")?;
@@ -169,6 +179,7 @@ fn write_row_tsv<W: Write>(w: &mut W, row: &[Value]) -> anyhow::Result<()> {
         match v {
             Value::Null => w.write_all(b"\\N")?,
             Value::Text(s) => {
+                let s = sanitize_text(config, s.clone());
                 w.write_all(b"\"")?;
                 // Escape by doubling quotes.
                 for ch in s.chars() {
@@ -269,15 +280,17 @@ async fn load_tsv_staging_swap(
                 info!(table = %pg_table, file_bytes = total.unwrap_or(0), "staging_copy");
             });
 
-            db.copy_in_tsv_file(
-                &schema_staging,
-                &pg_table,
-                &cols,
-                &tsv_path,
-                config.execution.copy.file_send_chunk_bytes,
-            )
-            .await
-            .with_context(|| format!("failed staging COPY for `{}`", pg_table))?;
+        db.copy_in_tsv_file(
+            &schema_staging,
+            &pg_table,
+            &cols,
+            &tsv_path,
+            config.execution.copy.file_send_chunk_bytes,
+            config.libgen.dump.sanitize_nul_bytes,
+            config.libgen.dump.nul_replacement.as_bytes(),
+        )
+        .await
+        .with_context(|| format!("failed staging COPY for `{}`", pg_table))?;
 
             if config.postgres.indexing.create_after_load {
                 let main_fields = if manifest.kind == "fiction" {

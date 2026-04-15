@@ -58,12 +58,14 @@ Scope notes:
   - [x] Error contexts include dump offset and a short statement preview (bounded) for debugging.
   - [x] Explicitly cap per-statement memory allocation and propagate a typed “statement too large” error.
   - [x] Add parser tests that assert guardrail errors are thrown with context (no panics).
+- [x] Parser correctness: handle doubled-quote escaping (`''`) consistently in both statement splitting and value parsing (including across buffer boundaries).
 - [x] Parser unit tests with fixtures (CREATE TABLE + INSERT parsing basics).
 
 ## Offline Conversion Path (Intermediate Artifact + COPY)
 
 - [x] Convert MySQL dump → normalized intermediate format (TSV; documented choice).
 - [x] Load intermediate into Postgres using `COPY` (fast path).
+- [x] Sanitize NUL bytes during offline load (Postgres `text` cannot contain NUL; configurable replacement).
 - [x] Resumability: checkpoints allow restarting without reprocessing completed regions.
 - [x] Create indexes only after bulk insert finishes (post-load indexing) to maximize ingest speed.
 - [x] Offline load resumability: restart-safe loads without manual cleanup.

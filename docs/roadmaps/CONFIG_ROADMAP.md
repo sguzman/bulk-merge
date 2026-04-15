@@ -67,6 +67,7 @@ vary across environments should be expressed here rather than hardcoded.
 - [x] `libgen.dump.allow_invalid_utf8` policy.
 - [x] `libgen.dump.max_statement_bytes` (guardrail).
 - [x] `libgen.dump.error_preview_bytes` (bounded statement preview for parse errors).
+- [x] `libgen.dump.sanitize_nul_bytes` and `libgen.dump.nul_replacement` (Postgres text compatibility).
 
 ## LibGen init-db provisioning
 

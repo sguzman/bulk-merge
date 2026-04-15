@@ -8,6 +8,16 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tracing::{info, instrument};
 
+fn sanitize_text(config: &AppConfig, s: String) -> String {
+    if !config.libgen.dump.sanitize_nul_bytes {
+        return s;
+    }
+    if !s.contains('\0') {
+        return s;
+    }
+    s.replace('\0', &config.libgen.dump.nul_replacement)
+}
+
 #[derive(Debug, Clone)]
 pub struct IngestPlan {
     pub kind: LibgenDumpKind,
@@ -155,6 +165,7 @@ pub async fn ingest_dump_rows(
                 match v {
                     Value::Null => out_row.push(None),
                     Value::Text(s) => {
+                        let s = sanitize_text(config, s);
                         chunk_bytes = chunk_bytes.saturating_add(s.len());
                         out_row.push(Some(s));
                     }

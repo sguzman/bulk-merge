@@ -75,7 +75,7 @@ impl Db {
     pub async fn table_exists(&self, schema: &str, table: &str) -> anyhow::Result<bool> {
         let rec: Option<(i64,)> = sqlx::query_as(
             r#"
-select 1
+select 1::bigint
 from information_schema.tables
 where table_schema = $1 and table_type = 'BASE TABLE' and table_name = $2
 "#,
@@ -194,7 +194,7 @@ order by table_name
         let live_exists = {
             let rec: Option<(i64,)> = sqlx::query_as(
                 r#"
-select 1
+select 1::bigint
 from information_schema.tables
 where table_schema = $1 and table_type = 'BASE TABLE' and table_name = $2
 "#,
@@ -572,6 +572,8 @@ where id = $1
         columns: &[String],
         path: &std::path::Path,
         file_send_chunk_bytes: u64,
+        sanitize_nul_bytes: bool,
+        nul_replacement: &[u8],
     ) -> anyhow::Result<()> {
         let schema_q = quote_ident(schema);
         let table_q = quote_ident(table);
@@ -602,7 +604,20 @@ where id = $1
             if n == 0 {
                 break;
             }
-            copy_in.send(buf[..n].to_vec()).await?;
+            if !sanitize_nul_bytes || !buf[..n].contains(&0u8) {
+                copy_in.send(buf[..n].to_vec()).await?;
+                continue;
+            }
+
+            let mut out: Vec<u8> = Vec::with_capacity(n + 16);
+            for &b in &buf[..n] {
+                if b == 0u8 {
+                    out.extend_from_slice(nul_replacement);
+                } else {
+                    out.push(b);
+                }
+            }
+            copy_in.send(out).await?;
         }
 
         copy_in.finish().await?;
@@ -816,7 +831,7 @@ where import_run_id = $1 and checkpoint_key = $2
     pub async fn index_exists(&self, schema: &str, index: &str) -> anyhow::Result<bool> {
         let rec: Option<(i64,)> = sqlx::query_as(
             r#"
-select 1
+select 1::bigint
 from pg_class c
 join pg_namespace n on n.oid = c.relnamespace
 where c.relkind = 'i' and n.nspname = $1 and c.relname = $2
