@@ -210,6 +210,10 @@ impl AppConfig {
             errors.push("paths.cache_dir must not be empty".to_string());
         }
 
+        if self.libgen.offline.load.staging_schema_prefix.trim().is_empty() {
+            errors.push("libgen.offline.load.staging_schema_prefix must not be empty".to_string());
+        }
+
         if self.libgen.dump.max_statement_bytes == 0 {
             errors.push("libgen.dump.max_statement_bytes must be > 0".to_string());
         }
@@ -605,6 +609,8 @@ pub struct LibgenOfflineConfig {
     pub out_dir_default: Option<String>,
     #[serde(default = "default_libgen_offline_layout")]
     pub layout: LibgenOfflineLayout,
+    #[serde(default)]
+    pub load: LibgenOfflineLoadConfig,
 }
 
 impl Default for LibgenOfflineConfig {
@@ -612,6 +618,7 @@ impl Default for LibgenOfflineConfig {
         Self {
             out_dir_default: None,
             layout: default_libgen_offline_layout(),
+            load: LibgenOfflineLoadConfig::default(),
         }
     }
 }
@@ -640,6 +647,44 @@ pub enum LibgenOfflineLayout {
     Flat,
     /// Write artifacts into a per-kind subdir under the configured directory.
     KindSubdir,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LibgenOfflineLoadConfig {
+    #[serde(default = "default_libgen_offline_load_strategy")]
+    pub strategy: LibgenOfflineLoadStrategy,
+    #[serde(default = "default_libgen_offline_staging_schema_prefix")]
+    pub staging_schema_prefix: String,
+    #[serde(default = "default_true")]
+    pub keep_old_tables: bool,
+    #[serde(default)]
+    pub drop_old_tables_on_success: bool,
+}
+
+impl Default for LibgenOfflineLoadConfig {
+    fn default() -> Self {
+        Self {
+            strategy: default_libgen_offline_load_strategy(),
+            staging_schema_prefix: default_libgen_offline_staging_schema_prefix(),
+            keep_old_tables: true,
+            drop_old_tables_on_success: false,
+        }
+    }
+}
+
+fn default_libgen_offline_load_strategy() -> LibgenOfflineLoadStrategy {
+    LibgenOfflineLoadStrategy::StagingSwap
+}
+
+fn default_libgen_offline_staging_schema_prefix() -> String {
+    "src_libgen_staging".to_string()
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LibgenOfflineLoadStrategy {
+    /// Load into a staging schema then swap tables into place via renames.
+    StagingSwap,
 }
 
 #[derive(Debug, Clone, Deserialize)]

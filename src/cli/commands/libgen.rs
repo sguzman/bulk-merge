@@ -431,7 +431,7 @@ pub async fn offline_load(
         .await
         .context("failed to create bm_meta.import_run")?;
 
-    load_tsv_into_postgres(&db, config, &in_dir)
+    load_tsv_into_postgres(&db, config, &in_dir, run_id)
         .await
         .context("failed loading offline TSV into Postgres")?;
 

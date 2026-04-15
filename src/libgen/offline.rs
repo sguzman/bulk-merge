@@ -1,4 +1,4 @@
-use crate::config::{AppConfig, LibgenDumpKind};
+use crate::config::{AppConfig, LibgenDumpKind, LibgenOfflineLoadStrategy};
 use crate::db::Db;
 use crate::libgen::mysql_dump::{parse_create_table, parse_insert_into, seek_to_offset, StatementReader, TableDef, Value};
 use crate::progress::{ProgressConfig, ProgressTicker};
@@ -180,23 +180,62 @@ fn write_row_tsv<W: Write>(w: &mut W, row: &[Value]) -> anyhow::Result<()> {
 }
 
 #[instrument(skip_all, fields(in_dir = %in_dir))]
-pub async fn load_tsv_into_postgres(db: &Db, config: &AppConfig, in_dir: &str) -> anyhow::Result<()> {
+pub async fn load_tsv_into_postgres(
+    db: &Db,
+    config: &AppConfig,
+    in_dir: &str,
+    import_run_id: i64,
+) -> anyhow::Result<()> {
+    load_tsv_into_postgres_inner(db, config, in_dir, import_run_id, None).await
+}
+
+async fn load_tsv_into_postgres_inner(
+    db: &Db,
+    config: &AppConfig,
+    in_dir: &str,
+    import_run_id: i64,
+    interrupt_after_staged_tables: Option<usize>,
+) -> anyhow::Result<()> {
     let in_dir = Path::new(in_dir);
     let bytes = std::fs::read(manifest_path(in_dir)).context("missing manifest.json")?;
     let manifest: OfflineManifest = serde_json::from_slice(&bytes).context("failed parsing manifest.json")?;
 
-    info!(tables = manifest.tables.len(), "provisioning tables from manifest");
-    for def in &manifest.tables {
-        let pg_table = format!("{}{}{}", manifest.overall_prefix, manifest.kind_prefix, def.name);
-        db.create_table_from_def(&manifest.schema, &pg_table, def, false)
+    match config.libgen.offline.load.strategy {
+        LibgenOfflineLoadStrategy::StagingSwap => {
+            load_tsv_staging_swap(
+                db,
+                config,
+                in_dir,
+                &manifest,
+                import_run_id,
+                interrupt_after_staged_tables,
+            )
             .await
-            .with_context(|| format!("failed creating table `{}`", pg_table))?;
+        }
     }
+}
+
+async fn load_tsv_staging_swap(
+    db: &Db,
+    config: &AppConfig,
+    in_dir: &Path,
+    manifest: &OfflineManifest,
+    import_run_id: i64,
+    interrupt_after_staged_tables: Option<usize>,
+) -> anyhow::Result<()> {
+    let schema_live = &manifest.schema;
+    let schema_staging = format!(
+        "{}_{}",
+        config.libgen.offline.load.staging_schema_prefix,
+        import_run_id
+    );
+    db.ensure_schema(&schema_staging).await?;
 
     let mut ticker = ProgressTicker::new(ProgressConfig {
         log_interval: Duration::from_secs(config.progress.log_interval_seconds),
     });
 
+    let mut staged_tables: usize = 0;
     for (i, def) in manifest.tables.iter().enumerate() {
         let pg_table = format!("{}{}{}", manifest.overall_prefix, manifest.kind_prefix, def.name);
         let cols: Vec<String> = def.columns.iter().map(|c| c.name.clone()).collect();
@@ -204,40 +243,127 @@ pub async fn load_tsv_into_postgres(db: &Db, config: &AppConfig, in_dir: &str) -
         if !tsv_path.exists() {
             continue;
         }
-        let total = std::fs::metadata(&tsv_path).ok().map(|m| m.len());
-        ticker.maybe_log("libgen_offline_load", i as u64, Some(manifest.tables.len() as u64), || {
-            info!(table = %pg_table, file_bytes = total.unwrap_or(0), "loading_table");
-        });
 
-        db.copy_in_tsv_file(
-            &manifest.schema,
-            &pg_table,
-            &cols,
-            &tsv_path,
-            config.execution.copy.file_send_chunk_bytes,
-        )
+        let stage = db
+            .get_offline_swap_stage(import_run_id, &pg_table)
             .await
-            .with_context(|| format!("failed COPY for `{}`", pg_table))?;
+            .unwrap_or(None);
 
-        if config.postgres.indexing.create_after_load {
-            let main_fields = if manifest.kind == "fiction" {
-                &config.postgres.indexing.main_fields.fiction
-            } else {
-                &config.postgres.indexing.main_fields.compact
-            };
-            for field in main_fields {
-                if def.columns.iter().any(|c| c.name == *field) {
-                    db.ensure_btree_index(
-                        &manifest.schema,
-                        &pg_table,
-                        field,
-                        config.postgres.indexing.concurrent,
-                    )
-                    .await?;
+        // Stage (create + load + index) unless already staged/swapped.
+        if stage.as_deref() != Some("staged") && stage.as_deref() != Some("swapped") {
+            info!(table = %pg_table, schema = %schema_staging, "staging_table");
+            db.create_table_from_def(&schema_staging, &pg_table, def, false)
+                .await
+                .with_context(|| format!("failed creating staging table `{}`", pg_table))?;
+
+            let total = std::fs::metadata(&tsv_path).ok().map(|m| m.len());
+            ticker.maybe_log("libgen_offline_stage", i as u64, Some(manifest.tables.len() as u64), || {
+                info!(table = %pg_table, file_bytes = total.unwrap_or(0), "staging_copy");
+            });
+
+            db.copy_in_tsv_file(
+                &schema_staging,
+                &pg_table,
+                &cols,
+                &tsv_path,
+                config.execution.copy.file_send_chunk_bytes,
+            )
+            .await
+            .with_context(|| format!("failed staging COPY for `{}`", pg_table))?;
+
+            if config.postgres.indexing.create_after_load {
+                let main_fields = if manifest.kind == "fiction" {
+                    &config.postgres.indexing.main_fields.fiction
+                } else {
+                    &config.postgres.indexing.main_fields.compact
+                };
+                for field in main_fields {
+                    if def.columns.iter().any(|c| c.name == *field) {
+                        db.ensure_btree_index(
+                            &schema_staging,
+                            &pg_table,
+                            field,
+                            config.postgres.indexing.concurrent,
+                        )
+                        .await?;
+                    }
                 }
             }
+
+            db.upsert_offline_swap_progress(
+                import_run_id,
+                schema_live,
+                &schema_staging,
+                &pg_table,
+                "staged",
+            )
+            .await?;
+
+            staged_tables += 1;
+            if let Some(limit) = interrupt_after_staged_tables {
+                if staged_tables >= limit {
+                    anyhow::bail!("intentional interrupt after staging {staged_tables} table(s)");
+                }
+            }
+        }
+
+        // Swap staged table into place unless already swapped.
+        let stage = db
+            .get_offline_swap_stage(import_run_id, &pg_table)
+            .await
+            .unwrap_or(None);
+        if stage.as_deref() != Some("swapped") {
+            info!(table = %pg_table, "swapping_staged_table_into_live_schema");
+            db.swap_table_from_staging(
+                schema_live,
+                &schema_staging,
+                &pg_table,
+                config.libgen.offline.load.keep_old_tables,
+                &import_run_id.to_string(),
+            )
+            .await
+            .with_context(|| format!("failed swapping `{}` from staging", pg_table))?;
+
+            db.upsert_offline_swap_progress(
+                import_run_id,
+                schema_live,
+                &schema_staging,
+                &pg_table,
+                "swapped",
+            )
+            .await?;
+        }
+
+        let total = std::fs::metadata(&tsv_path).ok().map(|m| m.len());
+        ticker.maybe_log("libgen_offline_load", i as u64, Some(manifest.tables.len() as u64), || {
+            info!(table = %pg_table, file_bytes = total.unwrap_or(0), "loaded_table");
+        });
+    }
+
+    if config.libgen.offline.load.drop_old_tables_on_success && config.libgen.offline.load.keep_old_tables {
+        for def in &manifest.tables {
+            let pg_table = format!("{}{}{}", manifest.overall_prefix, manifest.kind_prefix, def.name);
+            let old_name = format!("{pg_table}__old_{import_run_id}");
+            db.drop_table_if_exists(schema_live, &old_name).await?;
         }
     }
 
     Ok(())
+}
+
+pub async fn load_tsv_into_postgres_for_test_interrupt_after_staged_tables(
+    db: &Db,
+    config: &AppConfig,
+    in_dir: &str,
+    import_run_id: i64,
+    interrupt_after_staged_tables: usize,
+) -> anyhow::Result<()> {
+    load_tsv_into_postgres_inner(
+        db,
+        config,
+        in_dir,
+        import_run_id,
+        Some(interrupt_after_staged_tables),
+    )
+    .await
 }

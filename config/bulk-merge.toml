@@ -82,6 +82,12 @@ compact_prefix = "compact_"
 # out_dir_default = ".cache/bulk-merge/libgen-offline"
 layout = "kind_subdir" # "kind_subdir" | "flat"
 
+[libgen.offline.load]
+strategy = "staging_swap"
+staging_schema_prefix = "src_libgen_staging"
+keep_old_tables = true
+drop_old_tables_on_success = false
+
 [libgen.resume]
 enabled = true
 checkpoint_granularity = "statement" # "statement" | "row"

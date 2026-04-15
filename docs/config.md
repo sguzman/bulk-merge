@@ -68,6 +68,10 @@ Environment overrides:
 - `libgen.offline.out_dir_default`: default directory for `bulk-merge libgen convert` output (`manifest.json`, `state.json`, `*.tsv`).
   - If omitted, defaults to `${paths.cache_dir}/libgen-offline` unless `paths.cache_policy = "never"`.
 - `libgen.offline.layout`: `kind_subdir|flat` controls whether offline artifacts are written into `${out_dir_default}/{fiction|compact}` or directly into `out_dir_default`.
+- `libgen.offline.load.strategy`: currently `staging_swap` (load into a staging schema, then rename into place).
+- `libgen.offline.load.staging_schema_prefix`: prefix used to create per-run staging schemas.
+- `libgen.offline.load.keep_old_tables`: keep the previous live table as `${table}__old_<run_id>` when swapping in staging tables.
+- `libgen.offline.load.drop_old_tables_on_success`: drop any kept old tables at the end of a successful load (default false).
 
 ## LibGen incremental strategy
 

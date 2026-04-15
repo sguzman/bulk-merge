@@ -59,9 +59,9 @@ framework.
 - [x] Implement `update libgen` (incremental) command to ingest a newer dump and apply changes incrementally (Phase 1: upsert by configured primary key columns).
 - [x] Persist dataset-level state for incremental updates (`bm_meta.dataset_state`).
 - [x] Implement verification/stats commands for LibGen ingestion (`stats`, `sample`, `validate`).
-- [ ] Implement resumable offline load strategy (restart-safe without manual cleanup).
-  - [ ] Choose and implement a single approach (A/B/C) as an implementation detail.
-  - [ ] Add integration test simulating interruption + restart.
+- [x] Implement resumable offline load strategy (restart-safe without manual cleanup).
+  - [x] Choose and implement a single approach (A/B/C) as an implementation detail.
+  - [x] Add integration test simulating interruption + restart.
 - [ ] Implement cache-dir policy for intermediate artifacts (`paths.cache_dir`, default under `./.cache/bulk-merge`).
 
 ## Additional Sources (Future)

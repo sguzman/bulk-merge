@@ -73,6 +73,7 @@ vary across environments should be expressed here rather than hardcoded.
 - [x] `libgen.tables.compact.name` (or naming template).
 - [x] `libgen.offline.out_dir_default` (default output directory for offline conversion artifacts).
 - [x] `libgen.offline.layout` (`kind_subdir|flat`) (offline artifact layout policy under cache dir).
+- [x] `libgen.offline.load.*` (offline load strategy + staging/swap policy knobs).
 - [x] Document raw landing table name is fixed to `src_libgen.raw_statement` (migration-defined).
 - [ ] Make raw landing table name configurable (requires migration redesign / dynamic DDL strategy).
 

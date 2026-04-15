@@ -63,6 +63,142 @@ impl Db {
         Ok(())
     }
 
+    #[instrument(skip_all, fields(schema = schema))]
+    pub async fn ensure_schema(&self, schema: &str) -> anyhow::Result<()> {
+        let schema_q = quote_ident(schema);
+        let sql = format!("create schema if not exists {schema_q}");
+        sqlx::query(&sql).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table))]
+    pub async fn table_exists(&self, schema: &str, table: &str) -> anyhow::Result<bool> {
+        let rec: Option<(i64,)> = sqlx::query_as(
+            r#"
+select 1
+from information_schema.tables
+where table_schema = $1 and table_type = 'BASE TABLE' and table_name = $2
+"#,
+        )
+        .bind(schema)
+        .bind(table)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(rec.is_some())
+    }
+
+    #[instrument(skip_all, fields(schema = schema, table = table))]
+    pub async fn drop_table_if_exists(&self, schema: &str, table: &str) -> anyhow::Result<()> {
+        let schema_q = quote_ident(schema);
+        let table_q = quote_ident(table);
+        let sql = format!("drop table if exists {schema_q}.{table_q}");
+        sqlx::query(&sql).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(import_run_id = import_run_id, table = table_name, stage = stage))]
+    pub async fn upsert_offline_swap_progress(
+        &self,
+        import_run_id: i64,
+        schema_live: &str,
+        schema_staging: &str,
+        table_name: &str,
+        stage: &str,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            r#"
+insert into bm_meta.offline_swap_progress (import_run_id, schema_live, schema_staging, table_name, stage)
+values ($1, $2, $3, $4, $5)
+on conflict (import_run_id, table_name)
+do update set
+  stage = excluded.stage,
+  schema_live = excluded.schema_live,
+  schema_staging = excluded.schema_staging,
+  updated_at = now()
+"#,
+        )
+        .bind(import_run_id)
+        .bind(schema_live)
+        .bind(schema_staging)
+        .bind(table_name)
+        .bind(stage)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, fields(import_run_id = import_run_id, table = table_name))]
+    pub async fn get_offline_swap_stage(
+        &self,
+        import_run_id: i64,
+        table_name: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let rec: Option<(String,)> = sqlx::query_as(
+            r#"
+select stage
+from bm_meta.offline_swap_progress
+where import_run_id = $1 and table_name = $2
+"#,
+        )
+        .bind(import_run_id)
+        .bind(table_name)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(rec.map(|r| r.0))
+    }
+
+    #[instrument(skip_all, fields(schema_live = schema_live, schema_staging = schema_staging, table = table))]
+    pub async fn swap_table_from_staging(
+        &self,
+        schema_live: &str,
+        schema_staging: &str,
+        table: &str,
+        keep_old: bool,
+        old_suffix: &str,
+    ) -> anyhow::Result<()> {
+        let schema_live_q = quote_ident(schema_live);
+        let schema_staging_q = quote_ident(schema_staging);
+        let table_q = quote_ident(table);
+        let old_name = format!("{table}__old_{old_suffix}");
+        let old_q = quote_ident(&old_name);
+
+        let mut tx = self.pool.begin().await?;
+        let live_exists = {
+            let rec: Option<(i64,)> = sqlx::query_as(
+                r#"
+select 1
+from information_schema.tables
+where table_schema = $1 and table_type = 'BASE TABLE' and table_name = $2
+"#,
+            )
+            .bind(schema_live)
+            .bind(table)
+            .fetch_optional(&mut *tx)
+            .await?;
+            rec.is_some()
+        };
+
+        if live_exists {
+            if keep_old {
+                let sql = format!(
+                    "alter table {schema_live_q}.{table_q} rename to {old_q}"
+                );
+                sqlx::query(&sql).execute(&mut *tx).await?;
+            } else {
+                let sql = format!("drop table {schema_live_q}.{table_q}");
+                sqlx::query(&sql).execute(&mut *tx).await?;
+            }
+        }
+
+        let sql = format!(
+            "alter table {schema_staging_q}.{table_q} set schema {schema_live_q}"
+        );
+        sqlx::query(&sql).execute(&mut *tx).await?;
+        tx.commit().await?;
+
+        Ok(())
+    }
+
     #[instrument(skip_all, fields(source_name = source_name, dataset_id = dataset_id, kind = ?kind))]
     pub async fn create_import_run(
         &self,

@@ -64,15 +64,15 @@ Scope notes:
 - [x] Load intermediate into Postgres using `COPY` (fast path).
 - [x] Resumability: checkpoints allow restarting without reprocessing completed regions.
 - [x] Create indexes only after bulk insert finishes (post-load indexing) to maximize ingest speed.
-- [ ] Offline load resumability: restart-safe loads without manual cleanup.
-  - [ ] Choose exactly one implementation approach (A/B/C) and implement it end-to-end with tests.
-  - [ ] Approach A: staging tables + atomic swap/rename (implementation detail to satisfy resumability safely while preserving fast bulk insert + post-load indexing).
-    - [ ] Stage into `${schema}.staging_<run_id>` (or `${schema}_staging`) to avoid clobbering live tables.
-    - [ ] Create staging tables with same columns as target (including `_bm_row_hash` when enabled).
-    - [ ] Load staging via `COPY` and create indexes post-load (same policy as live tables).
-    - [ ] Swap into place via transactional renames (table-by-table) with an option to keep the old table as `${table}__old_<run_id>` for rollback.
-    - [ ] Persist swap progress in `bm_meta` so restart can continue swapping without reloading.
-    - [ ] Add integration test: interrupt after staging load, then restart and complete swap without reloading.
+- [x] Offline load resumability: restart-safe loads without manual cleanup.
+  - [x] Choose exactly one implementation approach (A/B/C) and implement it end-to-end with tests.
+  - [x] Approach A: staging tables + atomic swap/rename (implementation detail to satisfy resumability safely while preserving fast bulk insert + post-load indexing).
+    - [x] Stage into `${schema}.staging_<run_id>` (or `${schema}_staging`) to avoid clobbering live tables.
+    - [x] Create staging tables with same columns as target (including `_bm_row_hash` when enabled).
+    - [x] Load staging via `COPY` and create indexes post-load (same policy as live tables).
+    - [x] Swap into place via transactional renames (table-by-table) with an option to keep the old table as `${table}__old_<run_id>` for rollback.
+    - [x] Persist swap progress in `bm_meta` so restart can continue swapping without reloading.
+    - [x] Add integration test: interrupt after staging load, then restart and complete swap without reloading.
   - [ ] Approach B: run-scoped truncate+reload (implementation detail; faster/simpler but higher operator risk, requires explicit unsafe flag).
     - [ ] Add explicit config flag acknowledging data loss risk (must be `true` to enable).
     - [ ] Truncate target tables in a transaction, then load via `COPY`.
