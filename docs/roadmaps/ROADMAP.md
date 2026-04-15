@@ -60,6 +60,8 @@ framework.
 - [x] Persist dataset-level state for incremental updates (`bm_meta.dataset_state`).
 - [x] Implement verification/stats commands for LibGen ingestion (`stats`, `sample`, `validate`).
 - [ ] Implement resumable offline load strategy (restart-safe without manual cleanup).
+  - [ ] Choose and implement a single strategy (staging+swap recommended).
+  - [ ] Add integration test simulating interruption + restart.
 - [ ] Implement cache-dir policy for intermediate artifacts (`paths.cache_dir`, default under `./.cache/bulk-merge`).
 
 ## Additional Sources (Future)
