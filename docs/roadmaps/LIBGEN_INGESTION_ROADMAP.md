@@ -64,23 +64,23 @@ Scope notes:
 - [x] Load intermediate into Postgres using `COPY` (fast path).
 - [x] Resumability: checkpoints allow restarting without reprocessing completed regions.
 - [x] Create indexes only after bulk insert finishes (post-load indexing) to maximize ingest speed.
-- [ ] Offline load resumability: restart-safe loads without manual cleanup (choose and implement one strategy).
-  - [ ] Strategy A: staging tables + atomic swap/rename (requires a swap plan + index rebuild policy).
+- [ ] Offline load resumability: restart-safe loads without manual cleanup.
+  - [ ] Choose exactly one implementation approach (A/B/C) and implement it end-to-end with tests.
+  - [ ] Approach A: staging tables + atomic swap/rename (implementation detail to satisfy resumability safely while preserving fast bulk insert + post-load indexing).
     - [ ] Stage into `${schema}.staging_<run_id>` (or `${schema}_staging`) to avoid clobbering live tables.
     - [ ] Create staging tables with same columns as target (including `_bm_row_hash` when enabled).
     - [ ] Load staging via `COPY` and create indexes post-load (same policy as live tables).
     - [ ] Swap into place via transactional renames (table-by-table) with an option to keep the old table as `${table}__old_<run_id>` for rollback.
     - [ ] Persist swap progress in `bm_meta` so restart can continue swapping without reloading.
     - [ ] Add integration test: interrupt after staging load, then restart and complete swap without reloading.
-  - [ ] Strategy B: run-scoped truncate+reload (requires strong run identity + explicit “unsafe” knob).
+  - [ ] Approach B: run-scoped truncate+reload (implementation detail; faster/simpler but higher operator risk, requires explicit unsafe flag).
     - [ ] Add explicit config flag acknowledging data loss risk (must be `true` to enable).
     - [ ] Truncate target tables in a transaction, then load via `COPY`.
     - [ ] Add integration test: simulate interruption mid-load and require restart to re-truncate + reload deterministically.
-  - [ ] Strategy C: per-table checkpoints + dedupe/upsert (requires stable keys for each table or row-hash).
+  - [ ] Approach C: per-table checkpoints + dedupe/upsert (implementation detail; requires stable keys and line-boundary replay).
     - [ ] Add per-table checkpoint state file capturing last successfully loaded TSV byte offset.
     - [ ] Implement resumable COPY by replaying from last checkpoint (requires line-boundary seek strategy).
     - [ ] Add integration test: interrupt mid-table, restart resumes from checkpoint and does not duplicate rows.
-  - [ ] Add an integration test that simulates an interrupted offline load and verifies restart behavior.
 - [ ] Cache policy: all on-disk intermediate artifacts and temp outputs default under `./.cache/bulk-merge/` (configurable root).
   - [x] Default offline artifacts under `paths.cache_dir` when no explicit output dir is provided (via derived `libgen.offline.out_dir_default`).
   - [x] `bulk-merge libgen convert` supports explicit `--out-dir` override (bypasses cache policy).
