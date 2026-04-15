@@ -102,6 +102,11 @@ pub enum LibgenCommand {
         #[arg(long)]
         dataset_version: Option<String>,
     },
+    /// Offline load status: print swap/staging progress for an import run id
+    LoadStatus {
+        #[arg(long)]
+        import_run_id: i64,
+    },
 }
 
 #[derive(ValueEnum, Debug, Clone, Copy)]

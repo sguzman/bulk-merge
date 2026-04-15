@@ -451,3 +451,57 @@ pub async fn offline_load(
 
     Ok(())
 }
+
+#[instrument(skip_all, fields(import_run_id = import_run_id))]
+pub async fn offline_load_status(config: &AppConfig, import_run_id: i64) -> anyhow::Result<()> {
+    let db = Db::connect(config).await?;
+    db.migrate().await?;
+
+    let recs = db
+        .list_offline_swap_progress(import_run_id)
+        .await
+        .context("failed listing bm_meta.offline_swap_progress")?;
+
+    #[derive(Serialize)]
+    struct Row {
+        schema_live: String,
+        schema_staging: String,
+        table_name: String,
+        stage: String,
+        updated_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    let rows: Vec<Row> = recs
+        .into_iter()
+        .map(|r| Row {
+            schema_live: r.0,
+            schema_staging: r.1,
+            table_name: r.2,
+            stage: r.3,
+            updated_at: r.4,
+        })
+        .collect();
+
+    maybe_write_report_line(
+        config,
+        "libgen_load_status",
+        &serde_json::json!({
+            "import_run_id": import_run_id,
+            "rows": rows,
+        }),
+    )?;
+
+    info!(import_run_id, rows = rows.len(), "offline load status");
+    for r in rows {
+        info!(
+            schema_live = %r.schema_live,
+            schema_staging = %r.schema_staging,
+            table = %r.table_name,
+            stage = %r.stage,
+            updated_at = %r.updated_at,
+            "swap_progress"
+        );
+    }
+
+    Ok(())
+}

@@ -88,6 +88,7 @@ strategy = "staging_swap"
 staging_schema_prefix = "src_libgen_staging"
 keep_old_tables = true
 drop_old_tables_on_success = false
+drop_staging_schema_on_success = false
 
 [libgen.resume]
 enabled = true

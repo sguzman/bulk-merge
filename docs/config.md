@@ -72,6 +72,7 @@ Environment overrides:
 - `libgen.offline.load.staging_schema_prefix`: prefix used to create per-run staging schemas.
 - `libgen.offline.load.keep_old_tables`: keep the previous live table as `${table}__old_<run_id>` when swapping in staging tables.
 - `libgen.offline.load.drop_old_tables_on_success`: drop any kept old tables at the end of a successful load (default false).
+- `libgen.offline.load.drop_staging_schema_on_success`: drop the per-run staging schema after a successful load (default false).
 
 ## LibGen incremental strategy
 

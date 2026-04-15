@@ -356,6 +356,10 @@ async fn load_tsv_staging_swap(
         }
     }
 
+    if config.libgen.offline.load.drop_staging_schema_on_success {
+        db.drop_schema_if_exists_cascade(&schema_staging).await?;
+    }
+
     Ok(())
 }
 

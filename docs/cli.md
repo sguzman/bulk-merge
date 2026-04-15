@@ -84,3 +84,9 @@ Offline load mode:
 
 - reads `manifest.json` and loads the `*.tsv` files into Postgres via `COPY FROM STDIN`
 - creates post-load indexes after bulk insert when `postgres.indexing.create_after_load = true`
+
+### `bulk-merge libgen load-status --import-run-id <id>`
+
+Offline load diagnostics:
+
+- prints staging/swap progress from `bm_meta.offline_swap_progress` for a given import run id

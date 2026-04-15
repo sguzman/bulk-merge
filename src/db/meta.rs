@@ -96,6 +96,14 @@ where table_schema = $1 and table_type = 'BASE TABLE' and table_name = $2
         Ok(())
     }
 
+    #[instrument(skip_all, fields(schema = schema))]
+    pub async fn drop_schema_if_exists_cascade(&self, schema: &str) -> anyhow::Result<()> {
+        let schema_q = quote_ident(schema);
+        let sql = format!("drop schema if exists {schema_q} cascade");
+        sqlx::query(&sql).execute(&self.pool).await?;
+        Ok(())
+    }
+
     #[instrument(skip_all, fields(import_run_id = import_run_id, table = table_name, stage = stage))]
     pub async fn upsert_offline_swap_progress(
         &self,
@@ -145,6 +153,26 @@ where import_run_id = $1 and table_name = $2
         .fetch_optional(&self.pool)
         .await?;
         Ok(rec.map(|r| r.0))
+    }
+
+    #[instrument(skip_all, fields(import_run_id = import_run_id))]
+    pub async fn list_offline_swap_progress(
+        &self,
+        import_run_id: i64,
+    ) -> anyhow::Result<Vec<(String, String, String, String, chrono::DateTime<chrono::Utc>)>> {
+        let recs: Vec<(String, String, String, String, chrono::DateTime<chrono::Utc>)> =
+            sqlx::query_as(
+                r#"
+select schema_live, schema_staging, table_name, stage, updated_at
+from bm_meta.offline_swap_progress
+where import_run_id = $1
+order by table_name
+"#,
+            )
+            .bind(import_run_id)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(recs)
     }
 
     #[instrument(skip_all, fields(schema_live = schema_live, schema_staging = schema_staging, table = table))]

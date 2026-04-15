@@ -21,6 +21,7 @@ Scope notes:
 - [x] `bulk-merge libgen stats` prints counts and last-run info.
 - [x] `bulk-merge libgen sample` prints a small sample of rows (Phase 1: JSON via `row_to_json`).
 - [x] `bulk-merge libgen validate` runs minimal invariants and reports failures (Phase 1: row count > 0).
+- [x] `bulk-merge libgen load-status` reports offline staging/swap progress for an import run id.
 
 ## Configuration & Policies (Control Pane)
 
@@ -81,6 +82,7 @@ Scope notes:
     - [ ] Add per-table checkpoint state file capturing last successfully loaded TSV byte offset.
     - [ ] Implement resumable COPY by replaying from last checkpoint (requires line-boundary seek strategy).
     - [ ] Add integration test: interrupt mid-table, restart resumes from checkpoint and does not duplicate rows.
+  - [x] Optional cleanup: drop per-run staging schema on success (config-gated).
 - [ ] Cache policy: all on-disk intermediate artifacts and temp outputs default under `./.cache/bulk-merge/` (configurable root).
   - [x] Default offline artifacts under `paths.cache_dir` when no explicit output dir is provided (via derived `libgen.offline.out_dir_default`).
   - [x] `bulk-merge libgen convert` supports explicit `--out-dir` override (bypasses cache policy).
