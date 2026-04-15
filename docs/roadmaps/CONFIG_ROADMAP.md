@@ -71,6 +71,7 @@ vary across environments should be expressed here rather than hardcoded.
 ## LibGen init-db provisioning
 
 - [x] `libgen.init.provision_tables` and `libgen.init.dumps` (optional schema-only provisioning during `init-db`).
+- [x] Normalize empty `libgen.init.dumps.*` as unset and validate provision_tables requires at least one dump path.
 
 ## LibGen Table Provisioning
 

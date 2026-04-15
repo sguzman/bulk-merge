@@ -82,6 +82,10 @@ Environment overrides:
 - `libgen.init.dumps.fiction`: dump path used for schema discovery for fiction tables (optional).
 - `libgen.init.dumps.compact`: dump path used for schema discovery for compact tables (optional).
 
+Notes:
+- When `libgen.init.provision_tables = true`, at least one of the dump paths must be set.
+- Empty strings are treated as unset.
+
 ## LibGen incremental strategy
 
 - `libgen.incremental.strategy`: `primary_key|row_hash`

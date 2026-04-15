@@ -95,6 +95,12 @@ Scope notes:
 - [x] `bulk-merge libgen load --import-run-id/--resume-latest` validates the manifest kind/dump matches the import_run config (default strict; configurable override).
 - [x] `bulk-merge libgen load-status` includes summary counts (staged/swapped/unknown) for a run id in addition to per-table rows.
 
+## init-db provisioning robustness
+
+- [x] `libgen.init.dumps.*` treat empty strings as unset during config normalization.
+- [x] When `libgen.init.provision_tables=true`, config validation requires at least one of `libgen.init.dumps.fiction` or `libgen.init.dumps.compact` is set.
+- [x] Document init-db provisioning failure modes and config expectations (no manual QA; just doc).
+
 ## Streaming Ingestion Path (No Intermediate Files)
 
 - [x] Parse dump and feed batched loads directly to Postgres (ingest uses client-side COPY when enabled; update uses upsert).

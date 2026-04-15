@@ -226,6 +226,16 @@ impl AppConfig {
             errors.push("libgen.dump.error_preview_bytes must be > 0".to_string());
         }
 
+        if self.libgen.init.provision_tables
+            && self.libgen.init.dumps.fiction.is_none()
+            && self.libgen.init.dumps.compact.is_none()
+        {
+            errors.push(
+                "libgen.init.provision_tables=true requires at least one of libgen.init.dumps.fiction or libgen.init.dumps.compact"
+                    .to_string(),
+            );
+        }
+
         if self.progress.log_interval_seconds == 0 {
             errors.push("progress.log_interval_seconds must be > 0".to_string());
         }
@@ -610,6 +620,7 @@ pub struct LibgenConfig {
 impl LibgenConfig {
     fn normalize(&mut self, paths: &PathsConfig) {
         self.offline.normalize(paths);
+        self.init.normalize();
     }
 }
 
@@ -626,6 +637,21 @@ impl Default for LibgenInitConfig {
         Self {
             provision_tables: false,
             dumps: LibgenInitDumpPaths::default(),
+        }
+    }
+}
+
+impl LibgenInitConfig {
+    fn normalize(&mut self) {
+        if let Some(p) = self.dumps.fiction.as_ref() {
+            if p.trim().is_empty() {
+                self.dumps.fiction = None;
+            }
+        }
+        if let Some(p) = self.dumps.compact.as_ref() {
+            if p.trim().is_empty() {
+                self.dumps.compact = None;
+            }
         }
     }
 }
