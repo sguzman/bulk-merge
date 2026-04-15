@@ -1,6 +1,8 @@
 use crate::config::{AppConfig, LibgenDumpKind};
 use crate::db::Db;
-use crate::libgen::mysql_dump::{parse_create_table, table_prefix_for_kind, StatementReader, TableDef};
+use crate::libgen::mysql_dump::{
+    parse_create_table, statement_preview, table_prefix_for_kind, StatementReader, TableDef,
+};
 use crate::progress::{ProgressConfig, ProgressTicker};
 use anyhow::Context as _;
 use std::time::Duration;
@@ -38,7 +40,10 @@ pub async fn provision_tables_from_dump(
     {
         let current_offset = stmt_reader.offset();
         ticker.maybe_log("libgen_provision_scan", current_offset, size_bytes, || {});
-        if let Some(def) = parse_create_table(&stmt).context("failed parsing CREATE TABLE")? {
+        if let Some(def) = parse_create_table(&stmt).with_context(|| {
+            let preview = statement_preview(&stmt, config.libgen.dump.error_preview_bytes as usize);
+            format!("failed parsing CREATE TABLE at offset_end={current_offset}: {preview}")
+        })? {
             if config.libgen.raw.enabled {
                 db.insert_libgen_raw_statement(
                     import_run_id,

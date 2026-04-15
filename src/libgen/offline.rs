@@ -1,6 +1,8 @@
 use crate::config::{AppConfig, LibgenDumpKind, LibgenOfflineLoadStrategy};
 use crate::db::Db;
-use crate::libgen::mysql_dump::{parse_create_table, parse_insert_into, seek_to_offset, StatementReader, TableDef, Value};
+use crate::libgen::mysql_dump::{
+    parse_create_table, parse_insert_into, seek_to_offset, statement_preview, StatementReader, TableDef, Value,
+};
 use crate::progress::{ProgressConfig, ProgressTicker};
 use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
@@ -103,14 +105,20 @@ pub fn convert_dump_to_tsv(
             },
         );
 
-        if let Some(def) = parse_create_table(&stmt)? {
+        if let Some(def) = parse_create_table(&stmt).with_context(|| {
+            let preview = statement_preview(&stmt, config.libgen.dump.error_preview_bytes as usize);
+            format!("failed parsing CREATE TABLE at offset_end={off}: {preview}")
+        })? {
             table_defs.entry(def.name.clone()).or_insert(def);
             state.dump_offset = off;
             std::fs::write(&state_path, serde_json::to_vec_pretty(&state)?)?;
             continue;
         }
 
-        let Some(insert) = parse_insert_into(&stmt)? else {
+        let Some(insert) = parse_insert_into(&stmt).with_context(|| {
+            let preview = statement_preview(&stmt, config.libgen.dump.error_preview_bytes as usize);
+            format!("failed parsing INSERT INTO at offset_end={off}: {preview}")
+        })? else {
             state.dump_offset = off;
             std::fs::write(&state_path, serde_json::to_vec_pretty(&state)?)?;
             continue;

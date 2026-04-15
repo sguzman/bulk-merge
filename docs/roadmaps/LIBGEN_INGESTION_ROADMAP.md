@@ -52,10 +52,10 @@ Scope notes:
 - [x] Parse `CREATE TABLE` to capture column order and rough types (ignore engine/charset noise).
 - [x] Parse `INSERT INTO ... VALUES (...)` including multi-row inserts.
 - [x] Correctly decode MySQL string escapes, NULL, numbers, and backtick identifiers.
-- [ ] Guardrails: maximum statement size, bounded buffering, explicit error reporting with context.
-  - [ ] Error contexts include dump offset, statement kind guess, and a short statement preview (bounded) for debugging.
-  - [ ] Explicitly cap per-statement memory allocation and propagate a typed “statement too large” error.
-  - [ ] Add parser tests that assert guardrail errors are thrown with context (no panics).
+- [x] Guardrails: maximum statement size, bounded buffering, explicit error reporting with context.
+  - [x] Error contexts include dump offset and a short statement preview (bounded) for debugging.
+  - [x] Explicitly cap per-statement memory allocation and propagate a typed “statement too large” error.
+  - [x] Add parser tests that assert guardrail errors are thrown with context (no panics).
 - [x] Parser unit tests with fixtures (CREATE TABLE + INSERT parsing basics).
 
 ## Offline Conversion Path (Intermediate Artifact + COPY)

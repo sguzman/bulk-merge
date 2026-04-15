@@ -89,3 +89,8 @@ Note: `row_hash` provides idempotent ingestion/de-duplication, but it does not m
 ## Output reporting
 
 - `output.report_path`: when set, appends JSON lines describing command outputs (useful for automation/log shipping).
+
+## LibGen parsing guardrails
+
+- `libgen.dump.max_statement_bytes`: hard cap for in-memory statement buffering.
+- `libgen.dump.error_preview_bytes`: max bytes of a statement preview included in parse errors for debugging.

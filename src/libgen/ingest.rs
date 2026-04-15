@@ -1,6 +1,6 @@
 use crate::config::{AppConfig, LibgenDumpKind};
 use crate::db::Db;
-use crate::libgen::mysql_dump::{parse_insert_into, seek_to_offset, StatementReader, TableDef, Value};
+use crate::libgen::mysql_dump::{parse_insert_into, seek_to_offset, statement_preview, StatementReader, TableDef, Value};
 use crate::progress::{ProgressConfig, ProgressTicker};
 use anyhow::Context as _;
 use sha2::{Digest as _, Sha256};
@@ -88,7 +88,10 @@ pub async fn ingest_dump_rows(
             info!(rows_seen, rows_loaded, offset = current_offset, "progress_detail");
         });
 
-        let Some(insert) = parse_insert_into(&stmt).context("failed parsing INSERT INTO")? else {
+        let Some(insert) = parse_insert_into(&stmt).with_context(|| {
+            let preview = statement_preview(&stmt, config.libgen.dump.error_preview_bytes as usize);
+            format!("failed parsing INSERT INTO at offset_end={current_offset}: {preview}")
+        })? else {
             if config.libgen.raw.enabled && config.libgen.raw.store_other_statements {
                 db.insert_libgen_raw_statement(import_run_id, current_offset as i64, "other", None, &stmt)
                     .await

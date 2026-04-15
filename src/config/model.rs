@@ -218,6 +218,10 @@ impl AppConfig {
             errors.push("libgen.dump.max_statement_bytes must be > 0".to_string());
         }
 
+        if self.libgen.dump.error_preview_bytes == 0 {
+            errors.push("libgen.dump.error_preview_bytes must be > 0".to_string());
+        }
+
         if self.progress.log_interval_seconds == 0 {
             errors.push("progress.log_interval_seconds must be > 0".to_string());
         }
@@ -697,6 +701,8 @@ pub struct LibgenDumpConfig {
     pub dataset_id: Option<String>,
     #[serde(default = "default_libgen_max_statement_bytes")]
     pub max_statement_bytes: u64,
+    #[serde(default = "default_libgen_error_preview_bytes")]
+    pub error_preview_bytes: u64,
     #[serde(default)]
     pub allow_invalid_utf8: bool,
 }
@@ -708,6 +714,7 @@ impl Default for LibgenDumpConfig {
             path: None,
             dataset_id: None,
             max_statement_bytes: default_libgen_max_statement_bytes(),
+            error_preview_bytes: default_libgen_error_preview_bytes(),
             allow_invalid_utf8: false,
         }
     }
@@ -715,6 +722,10 @@ impl Default for LibgenDumpConfig {
 
 fn default_libgen_max_statement_bytes() -> u64 {
     16_000_000
+}
+
+fn default_libgen_error_preview_bytes() -> u64 {
+    256
 }
 
 #[derive(Debug, Clone, Deserialize)]

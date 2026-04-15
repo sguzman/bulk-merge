@@ -72,6 +72,7 @@ path = ""
 dataset_id = ""
 allow_invalid_utf8 = false
 max_statement_bytes = 16_000_000
+error_preview_bytes = 256
 
 [libgen.tables]
 fiction_prefix = "fiction_"

@@ -15,8 +15,13 @@ pub struct TableDef {
 
 #[derive(Debug, thiserror::Error)]
 pub enum MySqlDumpError {
-    #[error("statement exceeded max size ({max_bytes} bytes)")]
-    StatementTooLarge { max_bytes: u64 },
+    #[error("statement exceeded max size (max={max_bytes} current={current_bytes} offset_end={offset_end})")]
+    StatementTooLarge {
+        max_bytes: u64,
+        current_bytes: u64,
+        offset_end: u64,
+        preview: String,
+    },
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("parse error: {0}")]
@@ -57,6 +62,9 @@ impl<R: Read> StatementReader<R> {
             if self.buf.len() as u64 > self.max_statement_bytes {
                 return Err(MySqlDumpError::StatementTooLarge {
                     max_bytes: self.max_statement_bytes,
+                    current_bytes: self.buf.len() as u64,
+                    offset_end: self.offset,
+                    preview: statement_preview_bytes(&self.buf, 256),
                 });
             }
 
@@ -115,6 +123,20 @@ impl<R: Read> StatementReader<R> {
             }
         }
         None
+    }
+}
+
+pub fn statement_preview(stmt: &str, max_bytes: usize) -> String {
+    statement_preview_bytes(stmt.as_bytes(), max_bytes)
+}
+
+fn statement_preview_bytes(bytes: &[u8], max_bytes: usize) -> String {
+    let n = bytes.len().min(max_bytes.max(1));
+    let s = String::from_utf8_lossy(&bytes[..n]).to_string();
+    if bytes.len() > n {
+        format!("{s}…")
+    } else {
+        s
     }
 }
 
@@ -595,5 +617,26 @@ CREATE TABLE `fiction` (
         assert!(s2.to_ascii_uppercase().starts_with("INSERT INTO"));
         let s3 = r.next_statement().unwrap();
         assert!(s3.is_none());
+    }
+
+    #[test]
+    fn statement_reader_enforces_max_size_with_context() {
+        let input = b"INSERT INTO `t` VALUES (1,'abcdefghijklmnopqrstuvwxyz');\n";
+        let mut r = StatementReader::new(&input[..], 10);
+        let err = r.next_statement().expect_err("expected too-large error");
+        match err {
+            MySqlDumpError::StatementTooLarge {
+                max_bytes,
+                current_bytes,
+                offset_end,
+                preview,
+            } => {
+                assert_eq!(max_bytes, 10);
+                assert!(current_bytes > 10);
+                assert!(offset_end > 0);
+                assert!(!preview.is_empty());
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 }

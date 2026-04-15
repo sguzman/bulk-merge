@@ -66,6 +66,7 @@ vary across environments should be expressed here rather than hardcoded.
 - [x] `libgen.dump.dataset_id` (stable identifier for checkpointing/incrementals).
 - [x] `libgen.dump.allow_invalid_utf8` policy.
 - [x] `libgen.dump.max_statement_bytes` (guardrail).
+- [x] `libgen.dump.error_preview_bytes` (bounded statement preview for parse errors).
 
 ## LibGen Table Provisioning
 
