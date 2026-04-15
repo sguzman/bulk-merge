@@ -84,11 +84,16 @@ Scope notes:
     - [ ] Implement resumable COPY by replaying from last checkpoint (requires line-boundary seek strategy).
     - [ ] Add integration test: interrupt mid-table, restart resumes from checkpoint and does not duplicate rows.
   - [x] Optional cleanup: drop per-run staging schema on success (config-gated).
-- [ ] Cache policy: all on-disk intermediate artifacts and temp outputs default under `./.cache/bulk-merge/` (configurable root).
+- [x] Cache policy: all on-disk intermediate artifacts and temp outputs default under `./.cache/bulk-merge/` (configurable root).
   - [x] Default offline artifacts under `paths.cache_dir` when no explicit output dir is provided (via derived `libgen.offline.out_dir_default`).
   - [x] `bulk-merge libgen convert` supports explicit `--out-dir` override (bypasses cache policy).
   - [x] `bulk-merge libgen convert` defaults to writing into a kind-specific cache dir rooted at `paths.cache_dir` (e.g. `${paths.cache_dir}/libgen-offline/{fiction|compact}`).
   - [x] Document cache directory contents and cleanup expectations (no manual QA; just doc).
+
+## Offline load safety (Resuming Correct Run)
+
+- [x] `bulk-merge libgen load --import-run-id/--resume-latest` validates the manifest kind/dump matches the import_run config (default strict; configurable override).
+- [x] `bulk-merge libgen load-status` includes summary counts (staged/swapped/unknown) for a run id in addition to per-table rows.
 
 ## Streaming Ingestion Path (No Intermediate Files)
 

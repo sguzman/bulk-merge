@@ -698,6 +698,8 @@ pub struct LibgenOfflineLoadConfig {
     pub drop_old_tables_on_success: bool,
     #[serde(default)]
     pub drop_staging_schema_on_success: bool,
+    #[serde(default = "default_true")]
+    pub resume_strict_manifest_match: bool,
 }
 
 impl Default for LibgenOfflineLoadConfig {
@@ -709,6 +711,7 @@ impl Default for LibgenOfflineLoadConfig {
             keep_old_tables: true,
             drop_old_tables_on_success: false,
             drop_staging_schema_on_success: false,
+            resume_strict_manifest_match: true,
         }
     }
 }

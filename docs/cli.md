@@ -99,3 +99,4 @@ Resume options:
 Offline load diagnostics:
 
 - prints staging/swap progress from `bm_meta.offline_swap_progress` for a given import run id
+- includes a summary count of tables per stage (`staged`, `swapped`, `unknown`)

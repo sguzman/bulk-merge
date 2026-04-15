@@ -267,6 +267,24 @@ returning id
         Ok(rec.0)
     }
 
+    #[instrument(skip_all, fields(import_run_id = import_run_id))]
+    pub async fn import_run_config_json(
+        &self,
+        import_run_id: i64,
+    ) -> anyhow::Result<Option<serde_json::Value>> {
+        let rec: Option<(serde_json::Value,)> = sqlx::query_as(
+            r#"
+select config_json
+from bm_meta.import_run
+where id = $1
+"#,
+        )
+        .bind(import_run_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(rec.map(|r| r.0))
+    }
+
     #[instrument(skip_all, fields(import_run_id = import_run_id, path = %path))]
     pub async fn upsert_import_file(
         &self,

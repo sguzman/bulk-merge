@@ -461,6 +461,36 @@ pub async fn offline_load(
         anyhow::bail!("import_run_id {run_id} has status `{status}`; only in_progress/failed can be resumed");
     }
 
+    if config.libgen.offline.load.resume_strict_manifest_match && (import_run_id.is_some() || resume_latest) {
+        let cfg_json = db
+            .import_run_config_json(run_id)
+            .await
+            .context("failed loading import_run config_json")?
+            .ok_or_else(|| anyhow::anyhow!("import_run_id {run_id} not found (config_json missing)"))?;
+
+        let expected_kind = cfg_json
+            .pointer("/libgen/kind")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let expected_dump = cfg_json
+            .pointer("/libgen/dump")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        if expected_kind != manifest.kind {
+            anyhow::bail!(
+                "resume manifest mismatch: import_run_id {run_id} expects kind `{expected_kind}`, but manifest has `{}`",
+                manifest.kind
+            );
+        }
+        if !expected_dump.is_empty() && expected_dump != manifest.dump_path {
+            anyhow::bail!(
+                "resume manifest mismatch: import_run_id {run_id} expects dump `{expected_dump}`, but manifest has `{}`",
+                manifest.dump_path
+            );
+        }
+    }
+
     load_tsv_into_postgres(&db, config, &in_dir, run_id)
         .await
         .context("failed loading offline TSV into Postgres")?;
@@ -501,14 +531,25 @@ pub async fn offline_load_status(config: &AppConfig, import_run_id: i64) -> anyh
         updated_at: chrono::DateTime<chrono::Utc>,
     }
 
+    let mut staged: u64 = 0;
+    let mut swapped: u64 = 0;
+    let mut unknown: u64 = 0;
+
     let rows: Vec<Row> = recs
         .into_iter()
-        .map(|r| Row {
-            schema_live: r.0,
-            schema_staging: r.1,
-            table_name: r.2,
-            stage: r.3,
-            updated_at: r.4,
+        .map(|r| {
+            match r.3.as_str() {
+                "staged" => staged += 1,
+                "swapped" => swapped += 1,
+                _ => unknown += 1,
+            }
+            Row {
+                schema_live: r.0,
+                schema_staging: r.1,
+                table_name: r.2,
+                stage: r.3,
+                updated_at: r.4,
+            }
         })
         .collect();
 
@@ -517,11 +558,19 @@ pub async fn offline_load_status(config: &AppConfig, import_run_id: i64) -> anyh
         "libgen_load_status",
         &serde_json::json!({
             "import_run_id": import_run_id,
+            "summary": { "staged": staged, "swapped": swapped, "unknown": unknown, "total": rows.len() },
             "rows": rows,
         }),
     )?;
 
-    info!(import_run_id, rows = rows.len(), "offline load status");
+    info!(
+        import_run_id,
+        rows = rows.len(),
+        staged,
+        swapped,
+        unknown,
+        "offline load status"
+    );
     for r in rows {
         info!(
             schema_live = %r.schema_live,

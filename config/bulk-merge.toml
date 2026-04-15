@@ -97,6 +97,7 @@ dataset_id_template = "libgen-{kind}"
 keep_old_tables = true
 drop_old_tables_on_success = false
 drop_staging_schema_on_success = false
+resume_strict_manifest_match = true
 
 [libgen.resume]
 enabled = true
