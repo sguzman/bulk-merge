@@ -745,7 +745,7 @@ where id = $1
         // Read from a tab-delimited Postgres COPY "text" stream.
         // This avoids CSV quoting edge cases and treats the literal \N as NULL.
         let copy_stmt = format!(
-            "copy {schema_q}.{table_q} ({cols_sql}) from stdin with (format text, delimiter E'\\t', null '\\\\N')"
+            "copy {schema_q}.{table_q} ({cols_sql}) from stdin with (format text, delimiter E'\\t')"
         );
 
         let mut f = tokio::fs::File::open(path)

@@ -18,7 +18,9 @@ pub(crate) fn coerce_value_best_effort(
     }
     // For date/timestamp columns, any backslash-containing value is treated as unrepresentable.
     // This catches odd dump sentinels that otherwise survive escaping into COPY streams.
-    if matches!(ty, PgTargetType::Timestamp | PgTargetType::Date) && trimmed.contains('\\') {
+    if matches!(ty, PgTargetType::Timestamp | PgTargetType::Date)
+        && (trimmed == "N" || trimmed.contains('\\'))
+    {
         return Ok(None);
     }
 
