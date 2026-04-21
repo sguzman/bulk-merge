@@ -104,7 +104,7 @@ pub async fn ingest_dump_rows(
             format!("failed parsing INSERT INTO at offset_end={current_offset}: {preview}")
         })? else {
             if config.libgen.raw.enabled && config.libgen.raw.store_other_statements {
-                db.insert_libgen_raw_statement(import_run_id, current_offset as i64, "other", None, &stmt)
+                db.insert_raw_statement(import_run_id, current_offset as i64, "other", None, &stmt)
                     .await
                     .context("failed inserting raw_statement")?;
             }
@@ -112,7 +112,7 @@ pub async fn ingest_dump_rows(
         };
 
         if config.libgen.raw.enabled {
-            db.insert_libgen_raw_statement(
+            db.insert_raw_statement(
                 import_run_id,
                 current_offset as i64,
                 "insert_into",

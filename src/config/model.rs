@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PathsConfig {
@@ -64,6 +64,8 @@ pub struct AppConfig {
     pub output: OutputConfig,
     #[serde(default)]
     pub libgen: LibgenConfig,
+    #[serde(default)]
+    pub openlibrary: OpenlibraryConfig,
 }
 
 impl AppConfig {
@@ -151,6 +153,7 @@ impl AppConfig {
         }
 
         self.libgen.normalize(&self.paths);
+        self.openlibrary.normalize();
     }
 
     pub fn validate(&self) -> anyhow::Result<()> {
@@ -180,6 +183,10 @@ impl AppConfig {
 
         if self.postgres.schema_libgen.trim().is_empty() {
             errors.push("postgres.schema_libgen must not be empty".to_string());
+        }
+
+        if self.postgres.schema_openlibrary.trim().is_empty() {
+            errors.push("postgres.schema_openlibrary must not be empty".to_string());
         }
 
         if self.postgres.pool.max_connections == 0 {
@@ -289,6 +296,8 @@ pub struct PostgresConfig {
     pub schema_meta: String,
     #[serde(default = "default_schema_libgen")]
     pub schema_libgen: String,
+    #[serde(default = "default_schema_openlibrary")]
+    pub schema_openlibrary: String,
     #[serde(default)]
     pub table_prefix: Option<String>,
     #[serde(default)]
@@ -339,6 +348,10 @@ fn default_schema_meta() -> String {
 
 fn default_schema_libgen() -> String {
     "src_libgen".to_string()
+}
+
+fn default_schema_openlibrary() -> String {
+    "src_openlibrary".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -1020,4 +1033,42 @@ pub enum LibgenDumpKind {
 
 fn default_true() -> bool {
     true
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct OpenlibraryConfig {
+    #[serde(default)]
+    pub dump: OpenlibraryDumpConfig,
+}
+
+impl OpenlibraryConfig {
+    fn normalize(&mut self) {
+        if let Some(p) = &self.dump.authors {
+            if p.trim().is_empty() {
+                self.dump.authors = None;
+            }
+        }
+        if let Some(p) = &self.dump.editions {
+            if p.trim().is_empty() {
+                self.dump.editions = None;
+            }
+        }
+        if let Some(p) = &self.dump.works {
+            if p.trim().is_empty() {
+                self.dump.works = None;
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct OpenlibraryDumpConfig {
+    #[serde(default)]
+    pub authors: Option<String>,
+    #[serde(default)]
+    pub editions: Option<String>,
+    #[serde(default)]
+    pub works: Option<String>,
+    #[serde(default)]
+    pub dataset_id: Option<String>,
 }

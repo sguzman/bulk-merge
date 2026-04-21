@@ -5,6 +5,7 @@ use tracing::instrument;
 
 mod init_db;
 mod libgen;
+mod openlibrary;
 
 #[instrument(skip_all)]
 pub async fn dispatch(args: Args, config: AppConfig) -> anyhow::Result<()> {
@@ -75,6 +76,7 @@ pub async fn dispatch(args: Args, config: AppConfig) -> anyhow::Result<()> {
             }
             LibgenCommand::Reset { kind } => libgen::reset(&args, &config, kind).await,
         },
+        Command::Openlibrary { command } => openlibrary::run(&args, &config, command).await,
     }
 }
 

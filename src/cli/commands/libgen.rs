@@ -48,9 +48,16 @@ pub async fn register_run(
             &dataset_id,
             dataset_version.as_deref(),
             ImportRunStatus::InProgress,
-            kind,
-            &dump,
-            config,
+            serde_json::json!({
+                "postgres": {
+                    "schema_meta": config.postgres.schema_meta,
+                    "schema_libgen": config.postgres.schema_libgen,
+                },
+                "libgen": {
+                    "kind": format!("{kind:?}").to_lowercase(),
+                    "dump": dump,
+                }
+            }),
         )
         .await
         .context("failed to create bm_meta.import_run")?;
@@ -490,9 +497,16 @@ pub async fn offline_load(
             &dataset_id,
             dataset_version.as_deref(),
             ImportRunStatus::InProgress,
-            kind,
-            &manifest.dump_path,
-            config,
+            serde_json::json!({
+                "postgres": {
+                    "schema_meta": config.postgres.schema_meta,
+                    "schema_libgen": config.postgres.schema_libgen,
+                },
+                "libgen": {
+                    "kind": format!("{kind:?}").to_lowercase(),
+                    "dump": manifest.dump_path,
+                }
+            }),
         )
         .await
         .context("failed to create bm_meta.import_run")?

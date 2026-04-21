@@ -32,6 +32,11 @@ pub enum Command {
         #[command(subcommand)]
         command: LibgenCommand,
     },
+    /// OpenLibrary-specific operations
+    Openlibrary {
+        #[command(subcommand)]
+        command: OpenlibraryCommand,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -120,6 +125,25 @@ pub enum LibgenCommand {
         /// Which LibGen kind(s) to reset.
         #[arg(long)]
         kind: LibgenResetKindArg,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum OpenlibraryCommand {
+    /// Ingest OpenLibrary dumps (authors, editions, works) into PostgreSQL
+    Ingest {
+        /// Path to authors dump file (overrides config)
+        #[arg(long)]
+        authors: Option<String>,
+        /// Path to editions dump file (overrides config)
+        #[arg(long)]
+        editions: Option<String>,
+        /// Path to works dump file (overrides config)
+        #[arg(long)]
+        works: Option<String>,
+        /// Stable dataset identifier for resumability/incrementals (defaults to config if present)
+        #[arg(long)]
+        dataset_id: Option<String>,
     },
 }
 

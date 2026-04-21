@@ -1,4 +1,4 @@
-use crate::config::{AppConfig, LibgenDumpKind};
+use crate::config::AppConfig;
 use anyhow::Context as _;
 use sha2::{Digest as _, Sha256};
 use sqlx::{postgres::PgPoolOptions, PgPool};
@@ -90,6 +90,11 @@ impl Db {
     pub async fn migrate(&self) -> anyhow::Result<()> {
         info!("running migrations");
         sqlx::migrate!("./migrations").run(&self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn execute_raw(&self, sql: &str) -> anyhow::Result<()> {
+        sqlx::query(sql).execute(&self.pool).await?;
         Ok(())
     }
 
@@ -253,28 +258,15 @@ where table_schema = $1 and table_type = 'BASE TABLE' and table_name = $2
         Ok(())
     }
 
-    #[instrument(skip_all, fields(source_name = source_name, dataset_id = dataset_id, kind = ?kind))]
+    #[instrument(skip_all, fields(source_name = source_name, dataset_id = dataset_id))]
     pub async fn create_import_run(
         &self,
         source_name: &str,
         dataset_id: &str,
         dataset_version: Option<&str>,
         status: ImportRunStatus,
-        kind: LibgenDumpKind,
-        dump: &str,
-        config: &AppConfig,
+        config_json: serde_json::Value,
     ) -> anyhow::Result<i64> {
-        let config_json = serde_json::json!({
-            "postgres": {
-                "schema_meta": config.postgres.schema_meta,
-                "schema_libgen": config.postgres.schema_libgen,
-            },
-            "libgen": {
-                "kind": format!("{kind:?}").to_lowercase(),
-                "dump": dump,
-            }
-        });
-
         let rec: (i64,) = sqlx::query_as(
             r#"
 insert into bm_meta.import_run (source_name, dataset_id, dataset_version, status, config_json)
@@ -1086,13 +1078,13 @@ where c.relkind = 'i' and n.nspname = $1 and c.relname = $2
         Ok(rec.is_some())
     }
 
-    #[instrument(skip_all, fields(import_run_id = import_run_id, offset_end = byte_offset_end, kind = stmt_kind, table = mysql_table))]
-    pub async fn insert_libgen_raw_statement(
+    #[instrument(skip_all, fields(import_run_id = import_run_id, offset_end = byte_offset_end, kind = stmt_kind, table = table_name))]
+    pub async fn insert_raw_statement(
         &self,
         import_run_id: i64,
         byte_offset_end: i64,
         stmt_kind: &str,
-        mysql_table: Option<&str>,
+        table_name: Option<&str>,
         payload: &str,
     ) -> anyhow::Result<()> {
         let mut hasher = Sha256::new();
@@ -1101,7 +1093,7 @@ where c.relkind = 'i' and n.nspname = $1 and c.relname = $2
 
         sqlx::query(
             r#"
-insert into src_libgen.raw_statement (import_run_id, byte_offset_end, stmt_kind, mysql_table, sha256, payload)
+insert into bm_meta.raw_statement (import_run_id, byte_offset_end, stmt_kind, table_name, sha256, payload)
 values ($1, $2, $3, $4, $5, $6)
 on conflict (import_run_id, byte_offset_end) do nothing
 "#,
@@ -1109,7 +1101,7 @@ on conflict (import_run_id, byte_offset_end) do nothing
         .bind(import_run_id)
         .bind(byte_offset_end)
         .bind(stmt_kind)
-        .bind(mysql_table)
+        .bind(table_name)
         .bind(hash)
         .bind(payload)
         .execute(&self.pool)
@@ -1232,7 +1224,7 @@ limit 1
         let rec: (i64,) = sqlx::query_as(
             r#"
 select count(*)::bigint
-from src_libgen.raw_statement
+from bm_meta.raw_statement
 where import_run_id = $1
 "#,
         )
@@ -1331,7 +1323,7 @@ where source_name = $1 and dataset_id = $2 and kind = $3
         }
 
         let mut qb = sqlx::QueryBuilder::new(
-            "insert into src_libgen.seen_pk (import_run_id, table_name, pk_column, pk_value) ",
+            "insert into bm_meta.seen_pk (import_run_id, table_name, pk_column, pk_value) ",
         );
         qb.push_values(values, |mut b, v| {
             b.push_bind(import_run_id);
@@ -1362,7 +1354,7 @@ where source_name = $1 and dataset_id = $2 and kind = $3
 delete from {schema_q}.{table_q} t
 where not exists (
   select 1
-  from src_libgen.seen_pk s
+  from bm_meta.seen_pk s
   where s.import_run_id = $1
     and s.table_name = $2
     and s.pk_column = $3
@@ -1381,7 +1373,7 @@ where not exists (
     }
 }
 
-fn quote_ident(ident: &str) -> String {
+pub fn quote_ident(ident: &str) -> String {
     format!("\"{}\"", ident.replace('\"', "\"\""))
 }
 
