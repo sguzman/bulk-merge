@@ -307,7 +307,7 @@ async fn flush_batch(
 fn to_pg_array(vals: &[String]) -> String {
     let joined = vals
         .iter()
-        .map(|v| format!("\"{}\"", v.replace('\"', "\\\"")))
+        .map(|v| format!("\"{}\"", v.replace('\\', "\\\\").replace('\"', "\\\"")))
         .collect::<Vec<_>>()
         .join(",");
     format!("{{{}}}", joined)
