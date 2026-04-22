@@ -12,6 +12,7 @@ pub async fn run(_args: &Args, config: &AppConfig, command: OpenlibraryCommand) 
             editions,
             works,
             dataset_id,
+            test_limit,
         } => {
             let db = Db::connect(config).await?;
             db.migrate().await?;
@@ -42,6 +43,7 @@ pub async fn run(_args: &Args, config: &AppConfig, command: OpenlibraryCommand) 
                     dump_path: path,
                     table_name: "authors".to_string(),
                     schema: config.postgres.schema_openlibrary.clone(),
+                    max_records: test_limit,
                 };
                 ingest_openlibrary_dump(&db, config, &plan, import_run_id).await?;
             }
@@ -52,6 +54,7 @@ pub async fn run(_args: &Args, config: &AppConfig, command: OpenlibraryCommand) 
                     dump_path: path,
                     table_name: "editions".to_string(),
                     schema: config.postgres.schema_openlibrary.clone(),
+                    max_records: test_limit,
                 };
                 ingest_openlibrary_dump(&db, config, &plan, import_run_id).await?;
             }
@@ -62,6 +65,7 @@ pub async fn run(_args: &Args, config: &AppConfig, command: OpenlibraryCommand) 
                     dump_path: path,
                     table_name: "works".to_string(),
                     schema: config.postgres.schema_openlibrary.clone(),
+                    max_records: test_limit,
                 };
                 ingest_openlibrary_dump(&db, config, &plan, import_run_id).await?;
             }

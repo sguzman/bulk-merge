@@ -11,6 +11,7 @@ pub struct OlIngestPlan {
     pub dump_path: String,
     pub table_name: String, // authors, editions, or works
     pub schema: String,
+    pub max_records: Option<usize>,
 }
 
 #[instrument(skip_all, fields(table = %plan.table_name, dump = %plan.dump_path))]
@@ -58,8 +59,8 @@ pub async fn ingest_openlibrary_dump(
         PgTargetType::Text,
         PgTargetType::Text,
         PgTargetType::Int4,
-        PgTargetType::Timestamp,
-        PgTargetType::Text, // will be cast to jsonb in SQL
+        PgTargetType::Timestamptz,
+        PgTargetType::Jsonb,
     ];
 
     for (i, line) in reader.lines().enumerate() {
@@ -70,6 +71,13 @@ pub async fn ingest_openlibrary_dump(
 
         let line = line?;
         lines_processed += 1;
+
+        if let Some(max) = plan.max_records {
+            if lines_processed > max as u64 {
+                info!(max, "reached max_records limit, stopping");
+                break;
+            }
+        }
 
         match parse_line(&line) {
             Ok(rec) => {

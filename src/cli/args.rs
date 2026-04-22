@@ -144,6 +144,9 @@ pub enum OpenlibraryCommand {
         /// Stable dataset identifier for resumability/incrementals (defaults to config if present)
         #[arg(long)]
         dataset_id: Option<String>,
+        /// Limit number of records to process per dump (for testing)
+        #[arg(long)]
+        test_limit: Option<usize>,
     },
 }
 

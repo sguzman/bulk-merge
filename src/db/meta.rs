@@ -19,7 +19,9 @@ fn pg_cast_sql(ty: PgTargetType) -> &'static str {
         PgTargetType::Float8 => "double precision",
         PgTargetType::Bool => "boolean",
         PgTargetType::Timestamp => "timestamp",
+        PgTargetType::Timestamptz => "timestamptz",
         PgTargetType::Date => "date",
+        PgTargetType::Jsonb => "jsonb",
     }
 }
 
@@ -1386,7 +1388,9 @@ pub enum PgTargetType {
     Float8,
     Bool,
     Timestamp,
+    Timestamptz,
     Date,
+    Jsonb,
 }
 
 pub(crate) fn mysql_type_to_postgres(mysql: &str) -> (PgTargetType, &'static str) {
