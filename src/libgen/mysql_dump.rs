@@ -416,6 +416,15 @@ fn parse_value<'a>(s: &'a str, start: usize) -> Result<(Value, usize), MySqlDump
             }
             Err(MySqlDumpError::Parse("unterminated string".to_string()))
         }
+        b'\\' => {
+            let rem = &s[start..];
+            if rem.starts_with("\\N") {
+                Ok((Value::Null, start + 2))
+            } else {
+                let tok = read_token(s, start);
+                Ok((Value::Text(tok.clone()), start + tok.len()))
+            }
+        }
         b'N' | b'n' => {
             let rem = &s[start..];
             if rem.to_ascii_uppercase().starts_with("NULL") {
