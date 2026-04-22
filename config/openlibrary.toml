@@ -1,0 +1,5 @@
+[dump]
+authors = "/drive/books/metadata/openlibrary2/ol_dump_authors_2026-03-31.txt"
+editions = "/drive/books/metadata/openlibrary2/ol_dump_editions_2026-03-31.txt"
+works = "/drive/books/metadata/openlibrary2/ol_dump_works_2026-03-31.txt"
+dataset_id = "openlibrary-2026-03-31"

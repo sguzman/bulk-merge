@@ -1,0 +1,55 @@
+[dump]
+kind = "fiction"
+path = ""
+dataset_id = ""
+allow_invalid_utf8 = false
+max_statement_bytes = 16000000
+error_preview_bytes = 256
+sanitize_nul_bytes = true
+nul_replacement = ""
+
+[tables]
+fiction_prefix = "fiction_"
+compact_prefix = "compact_"
+
+[init]
+provision_tables = false
+dumps = { fiction = "", compact = "" }
+
+[offline]
+layout = "kind_subdir"
+
+[offline.convert]
+checkpoint_interval_bytes = 67108864
+
+[offline.load]
+strategy = "staging_swap"
+staging_table_suffix_template = "__staging_{import_run_id}"
+dataset_id_template = "libgen-{kind}"
+keep_old_tables = true
+drop_old_tables_on_success = false
+drop_staging_tables_on_success = false
+resume_strict_manifest_match = true
+
+[resume]
+enabled = true
+checkpoint_granularity = "statement"
+
+[incremental]
+strategy = "primary_key"
+apply_deletes = false
+primary_key_columns = { fiction = ["ID"], compact = ["ID"] }
+row_hash = { enabled = false, algorithm = "sha256" }
+
+[raw]
+enabled = true
+store_other_statements = true
+
+[typing]
+mode = "best_effort"
+unrepresentable_policy = "null"
+
+[indexing]
+create_after_load = true
+concurrent = false
+main_fields = { fiction = ["Title", "Author", "ISBN", "MD5"], compact = ["Title", "Author", "ISBN", "MD5"] }
