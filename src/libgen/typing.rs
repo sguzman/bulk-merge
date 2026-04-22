@@ -71,6 +71,7 @@ pub(crate) fn coerce_value_best_effort(
         }
         PgTargetType::Timestamptz => Some(s),
         PgTargetType::Jsonb => Some(s),
+        PgTargetType::TextArray => Some(s),
     };
 
     match (coerced, policy) {

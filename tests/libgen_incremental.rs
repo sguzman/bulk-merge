@@ -61,9 +61,10 @@ INSERT INTO `fiction` VALUES (1,'new'),(3,'hi');
             &format!("ds_{run_suffix}"),
             Some("v1"),
             ImportRunStatus::InProgress,
-            LibgenDumpKind::Fiction,
-            &path_v1,
-            &cfg,
+            serde_json::json!({
+                "kind": LibgenDumpKind::Fiction,
+                "dump_path": path_v1,
+            }),
         )
         .await
         .expect("create import run v1");
@@ -107,9 +108,10 @@ INSERT INTO `fiction` VALUES (1,'new'),(3,'hi');
             &format!("ds_{run_suffix}"),
             Some("v2"),
             ImportRunStatus::InProgress,
-            LibgenDumpKind::Fiction,
-            &path_v2,
-            &cfg,
+            serde_json::json!({
+                "kind": LibgenDumpKind::Fiction,
+                "dump_path": path_v2,
+            }),
         )
         .await
         .expect("create import run v2");

@@ -52,9 +52,10 @@ INSERT INTO `fiction` VALUES (1,'a'),(2,'b');
             &format!("offline_ds_{run_suffix}"),
             Some("v1"),
             ImportRunStatus::InProgress,
-            LibgenDumpKind::Fiction,
-            &dump_path,
-            &cfg,
+            serde_json::json!({
+                "kind": LibgenDumpKind::Fiction,
+                "dump_path": dump_path,
+            }),
         )
         .await
         .expect("create import run");

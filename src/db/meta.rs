@@ -22,6 +22,7 @@ fn pg_cast_sql(ty: PgTargetType) -> &'static str {
         PgTargetType::Timestamptz => "timestamptz",
         PgTargetType::Date => "date",
         PgTargetType::Jsonb => "jsonb",
+        PgTargetType::TextArray => "text[]",
     }
 }
 
@@ -1391,6 +1392,7 @@ pub enum PgTargetType {
     Timestamptz,
     Date,
     Jsonb,
+    TextArray,
 }
 
 pub(crate) fn mysql_type_to_postgres(mysql: &str) -> (PgTargetType, &'static str) {

@@ -6,7 +6,7 @@ allow_invalid_utf8 = false
 max_statement_bytes = 16000000
 error_preview_bytes = 256
 sanitize_nul_bytes = true
-nul_replacement = ""
+nul_replacement = "[NUL]"
 
 [tables]
 fiction_prefix = "fiction_"

@@ -1,3 +1,4 @@
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -68,10 +69,63 @@ pub struct AppConfig {
     pub openlibrary: OpenlibraryConfig,
 }
 
+fn merge_toml_values(a: &mut toml::Value, b: toml::Value) {
+    match (a, b) {
+        (toml::Value::Table(a_table), toml::Value::Table(b_table)) => {
+            for (k, v) in b_table {
+                if let Some(existing) = a_table.get_mut(&k) {
+                    merge_toml_values(existing, v);
+                } else {
+                    a_table.insert(k, v);
+                }
+            }
+        }
+        (a, b) => *a = b,
+    }
+}
+
 impl AppConfig {
     pub fn load(path: &str) -> anyhow::Result<Self> {
-        let contents = std::fs::read_to_string(path)?;
-        let mut config: Self = toml::from_str(&contents)?;
+        let main_path = std::path::Path::new(path);
+        let main_contents = std::fs::read_to_string(main_path)
+            .with_context(|| format!("failed to read config file `{}`", path))?;
+        let mut merged_value = toml::from_str::<toml::Value>(&main_contents)
+            .with_context(|| format!("failed to parse config file `{}`", path))?;
+
+        // Also look for other .toml files in the same directory as the main config
+        if let Some(parent) = main_path.parent() {
+            if let Ok(entries) = std::fs::read_dir(parent) {
+                for entry in entries.flatten() {
+                    let entry_path = entry.path();
+                    if entry_path.is_file() 
+                        && entry_path.extension().map_or(false, |ext| ext == "toml")
+                        && entry_path != main_path 
+                    {
+                        let stem = entry_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                        let extra_contents = std::fs::read_to_string(&entry_path)?;
+                        let mut extra_value = toml::from_str::<toml::Value>(&extra_contents)?;
+
+                        // If the file is named e.g. "libgen.toml" but doesn't have a top-level "libgen" key,
+                        // wrap it so it merges into the right section.
+                        let needs_wrap = match &extra_value {
+                            toml::Value::Table(t) => !t.contains_key(&stem),
+                            _ => true,
+                        };
+
+                        if needs_wrap && !stem.is_empty() && stem != "bulk-merge" {
+                            let mut map = toml::map::Map::new();
+                            map.insert(stem, extra_value);
+                            extra_value = toml::Value::Table(map);
+                        }
+
+                        merge_toml_values(&mut merged_value, extra_value);
+                    }
+                }
+            }
+        }
+
+        let mut config: Self = merged_value.try_into()
+            .context("failed to deserialize merged configuration")?;
         config.apply_env_overrides();
         config.normalize();
         config.validate()?;
@@ -1024,7 +1078,7 @@ impl Default for LibgenRawConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LibgenDumpKind {
     Fiction,
