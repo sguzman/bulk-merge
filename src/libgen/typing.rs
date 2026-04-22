@@ -11,15 +11,12 @@ pub(crate) fn coerce_value_best_effort(
     if trimmed.is_empty() {
         return Ok(None);
     }
-    // In some dumps, string `\N` may be used as a NULL sentinel. Treat it as NULL for any
-    // non-text target type so typed COPY does not fail.
-    if ty != PgTargetType::Text && trimmed == "\\N" {
+    if ty != PgTargetType::Text && (trimmed == "\\N" || trimmed == "N" || trimmed == "NULL" || trimmed == "\\\\N") {
         return Ok(None);
     }
-    // For date/timestamp columns, any backslash-containing value is treated as unrepresentable.
-    // This catches odd dump sentinels that otherwise survive escaping into COPY streams.
-    if matches!(ty, PgTargetType::Timestamp | PgTargetType::Date)
-        && (trimmed == "N" || trimmed.contains('\\'))
+    // For date/timestamp columns, any backslash-containing value or known MySQL "zero" dates are treated as NULL.
+    if matches!(ty, PgTargetType::Timestamp | PgTargetType::Date | PgTargetType::Timestamptz)
+        && (trimmed == "N" || trimmed == "\\N" || trimmed == "0000-00-00 00:00:00" || trimmed == "0000-00-00" || trimmed.contains('\\'))
     {
         return Ok(None);
     }

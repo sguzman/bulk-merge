@@ -19,12 +19,14 @@ fn get_table_definition(table_name: &str) -> (Vec<String>, Vec<PgTargetType>) {
         "ol_key".to_string(),
         "ol_type".to_string(),
         "revision".to_string(),
+        "created".to_string(),
         "last_modified".to_string(),
     ];
     let mut types = vec![
         PgTargetType::Text,
         PgTargetType::Text,
         PgTargetType::Int4,
+        PgTargetType::Timestamptz,
         PgTargetType::Timestamptz,
     ];
 
@@ -164,6 +166,7 @@ pub async fn ingest_openlibrary_dump(
                     Some(rec.ol_key),
                     Some(rec.ol_type),
                     Some(rec.revision.to_string()),
+                    rec.created.map(|dt| dt.to_rfc3339()),
                     Some(rec.last_modified.to_rfc3339()),
                 ];
 
@@ -294,11 +297,10 @@ async fn flush_batch(
     schema: &str,
     table: &str,
     columns: &[String],
-    types: &[PgTargetType],
+    _types: &[PgTargetType],
     batch: &[Vec<Option<String>>],
 ) -> anyhow::Result<()> {
-    db.upsert_rows_from_text_with_types(schema, table, columns, types, &["ol_key".to_string()], batch)
-        .await?;
+    db.copy_rows_text_tsv(schema, table, columns, batch).await?;
     Ok(())
 }
 

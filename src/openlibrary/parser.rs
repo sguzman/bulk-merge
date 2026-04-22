@@ -8,6 +8,7 @@ pub struct OlRecord {
     pub ol_key: String,
     pub revision: i32,
     pub last_modified: DateTime<Utc>,
+    pub created: Option<DateTime<Utc>>,
     pub data: Value,
 
     // Extracted fields
@@ -119,11 +120,28 @@ pub fn parse_line(line: &str) -> anyhow::Result<OlRecord> {
     let lc_classifications = extract_array(&data, "lc_classifications");
     let dewey_decimal_class = extract_array(&data, "dewey_decimal_class");
 
+    let created = data.get("created").and_then(|v| {
+        v.as_object()
+            .and_then(|obj| obj.get("value"))
+            .and_then(|vv| vv.as_str())
+            .and_then(|s| {
+                if s.ends_with('Z') {
+                    s.parse::<DateTime<Utc>>().ok()
+                } else {
+                    // Try parsing with chrono and assume UTC
+                    chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f")
+                        .ok()
+                        .map(|dt| DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc))
+                }
+            })
+    });
+
     Ok(OlRecord {
         ol_type,
         ol_key,
         revision,
         last_modified,
+        created,
         data,
         title,
         subtitle,

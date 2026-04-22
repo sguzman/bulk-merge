@@ -692,7 +692,7 @@ where id = $1
         // Use CSV format with tab delimiter. NULL is the literal \N (unquoted).
         // We quote all non-NULL fields, escaping quotes by doubling.
         let copy_stmt = format!(
-            "copy {schema_q}.{table_q} ({cols_sql}) from stdin with (format csv, delimiter E'\\t', null '\\\\N', quote '\"', escape '\"')"
+            "copy {schema_q}.{table_q} ({cols_sql}) from stdin with (format csv, delimiter E'\\t', null '\\N', quote '\"', escape '\"')"
         );
 
         let mut conn = self.pool.acquire().await?;
@@ -1411,21 +1411,27 @@ pub enum PgTargetType {
 
 pub(crate) fn mysql_type_to_postgres(mysql: &str) -> (PgTargetType, &'static str) {
     let t = mysql.trim().to_ascii_lowercase();
+    let is_unsigned = t.contains("unsigned");
 
-    // Strip attributes like "unsigned" if present.
+    // Strip attributes like "unsigned" if present for base type matching.
     let base = t.split_whitespace().next().unwrap_or("");
 
     let pg = if base.starts_with("tinyint(1)") || base == "boolean" || base == "bool" {
         (PgTargetType::Bool, "boolean")
-    } else if base.starts_with("tinyint")
-        || base.starts_with("smallint")
-        || base.starts_with("mediumint")
-        || base.starts_with("int")
-        || base.starts_with("integer")
-    {
+    } else if base.starts_with("tinyint") || base.starts_with("smallint") {
         (PgTargetType::Int4, "integer")
+    } else if base.starts_with("mediumint") || base.starts_with("int") || base.starts_with("integer") {
+        if is_unsigned && (base.starts_with("int") || base.starts_with("integer")) {
+            (PgTargetType::Int8, "bigint")
+        } else {
+            (PgTargetType::Int4, "integer")
+        }
     } else if base.starts_with("bigint") {
-        (PgTargetType::Int8, "bigint")
+        if is_unsigned {
+            (PgTargetType::Numeric, "numeric") // uint64 can exceed bigint
+        } else {
+            (PgTargetType::Int8, "bigint")
+        }
     } else if base.starts_with("decimal") || base.starts_with("numeric") {
         (PgTargetType::Numeric, "numeric")
     } else if base.starts_with("float") || base.starts_with("double") || base.starts_with("real") {
