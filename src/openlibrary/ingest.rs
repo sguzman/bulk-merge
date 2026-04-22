@@ -30,34 +30,77 @@ fn get_table_definition(table_name: &str) -> (Vec<String>, Vec<PgTargetType>) {
 
     match table_name {
         "authors" => {
-            columns.push("name".to_string());
-            types.push(PgTargetType::Text);
+            columns.extend(vec![
+                "name".to_string(),
+                "birth_date".to_string(),
+                "death_date".to_string(),
+                "bio".to_string(),
+                "website".to_string(),
+            ]);
+            types.extend(vec![
+                PgTargetType::Text,
+                PgTargetType::Text,
+                PgTargetType::Text,
+                PgTargetType::Text,
+                PgTargetType::Text,
+            ]);
         }
         "works" => {
-            columns.push("title".to_string());
-            types.push(PgTargetType::Text);
-            columns.push("author_keys".to_string());
-            types.push(PgTargetType::TextArray);
-            columns.push("subjects".to_string());
-            types.push(PgTargetType::TextArray);
+            columns.extend(vec![
+                "title".to_string(),
+                "subtitle".to_string(),
+                "description".to_string(),
+                "author_keys".to_string(),
+                "subjects".to_string(),
+                "subject_people".to_string(),
+                "subject_places".to_string(),
+                "subject_times".to_string(),
+                "covers".to_string(),
+            ]);
+            types.extend(vec![
+                PgTargetType::Text,
+                PgTargetType::Text,
+                PgTargetType::Text,
+                PgTargetType::TextArray,
+                PgTargetType::TextArray,
+                PgTargetType::TextArray,
+                PgTargetType::TextArray,
+                PgTargetType::TextArray,
+                PgTargetType::Int8Array,
+            ]);
         }
         "editions" => {
-            columns.push("title".to_string());
-            types.push(PgTargetType::Text);
-            columns.push("isbn_10".to_string());
-            types.push(PgTargetType::TextArray);
-            columns.push("isbn_13".to_string());
-            types.push(PgTargetType::TextArray);
-            columns.push("publishers".to_string());
-            types.push(PgTargetType::TextArray);
-            columns.push("publish_date".to_string());
-            types.push(PgTargetType::Text);
+            columns.extend(vec![
+                "title".to_string(),
+                "subtitle".to_string(),
+                "isbn_10".to_string(),
+                "isbn_13".to_string(),
+                "publishers".to_string(),
+                "publish_date".to_string(),
+                "number_of_pages".to_string(),
+                "physical_format".to_string(),
+                "languages".to_string(),
+                "lc_classifications".to_string(),
+                "dewey_decimal_class".to_string(),
+                "notes".to_string(),
+            ]);
+            types.extend(vec![
+                PgTargetType::Text,
+                PgTargetType::Text,
+                PgTargetType::TextArray,
+                PgTargetType::TextArray,
+                PgTargetType::TextArray,
+                PgTargetType::Text,
+                PgTargetType::Int4,
+                PgTargetType::Text,
+                PgTargetType::TextArray,
+                PgTargetType::TextArray,
+                PgTargetType::TextArray,
+                PgTargetType::Text,
+            ]);
         }
         _ => {}
     }
-
-    columns.push("data".to_string());
-    types.push(PgTargetType::Jsonb);
 
     (columns, types)
 }
@@ -126,24 +169,46 @@ pub async fn ingest_openlibrary_dump(
 
                 match plan.table_name.as_str() {
                     "authors" => {
-                        row.push(rec.name);
+                        row.extend(vec![
+                            rec.name,
+                            rec.birth_date,
+                            rec.death_date,
+                            rec.bio,
+                            rec.website,
+                        ]);
                     }
                     "works" => {
-                        row.push(rec.title);
-                        row.push(Some(to_pg_array(&rec.author_keys)));
-                        row.push(Some(to_pg_array(&rec.subjects)));
+                        row.extend(vec![
+                            rec.title,
+                            rec.subtitle,
+                            rec.description,
+                            Some(to_pg_array(&rec.author_keys)),
+                            Some(to_pg_array(&rec.subjects)),
+                            Some(to_pg_array(&rec.subject_people)),
+                            Some(to_pg_array(&rec.subject_places)),
+                            Some(to_pg_array(&rec.subject_times)),
+                            Some(to_pg_int_array(&rec.covers)),
+                        ]);
                     }
                     "editions" => {
-                        row.push(rec.title);
-                        row.push(Some(to_pg_array(&rec.isbn_10)));
-                        row.push(Some(to_pg_array(&rec.isbn_13)));
-                        row.push(Some(to_pg_array(&rec.publishers)));
-                        row.push(rec.publish_date);
+                        row.extend(vec![
+                            rec.title,
+                            rec.subtitle,
+                            Some(to_pg_array(&rec.isbn_10)),
+                            Some(to_pg_array(&rec.isbn_13)),
+                            Some(to_pg_array(&rec.publishers)),
+                            rec.publish_date,
+                            rec.number_of_pages.map(|i| i.to_string()),
+                            rec.physical_format,
+                            Some(to_pg_array(&rec.languages)),
+                            Some(to_pg_array(&rec.lc_classifications)),
+                            Some(to_pg_array(&rec.dewey_decimal_class)),
+                            rec.notes,
+                        ]);
                     }
                     _ => {}
                 }
 
-                row.push(Some(rec.data.to_string()));
                 batch.push(row);
             }
             Err(e) => {
@@ -194,13 +259,15 @@ async fn provision_ol_table(
         let ty_sql = match ty {
             PgTargetType::Text => "TEXT",
             PgTargetType::Int4 => "INTEGER",
+            PgTargetType::Int8 => "BIGINT",
             PgTargetType::Timestamptz => "TIMESTAMPTZ",
             PgTargetType::TextArray => "TEXT[]",
+            PgTargetType::Int8Array => "BIGINT[]",
             PgTargetType::Jsonb => "JSONB",
             _ => "TEXT",
         };
         let pk = if col == "ol_key" { " PRIMARY KEY" } else { "" };
-        let not_null = if col == "ol_type" || col == "revision" || col == "last_modified" || col == "data" {
+        let not_null = if col == "ol_type" || col == "revision" || col == "last_modified" {
             " NOT NULL"
         } else {
             ""
@@ -239,6 +306,15 @@ fn to_pg_array(vals: &[String]) -> String {
     let joined = vals
         .iter()
         .map(|v| format!("\"{}\"", v.replace('\"', "\\\"")))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{{{}}}", joined)
+}
+
+fn to_pg_int_array(vals: &[i64]) -> String {
+    let joined = vals
+        .iter()
+        .map(|v| v.to_string())
         .collect::<Vec<_>>()
         .join(",");
     format!("{{{}}}", joined)

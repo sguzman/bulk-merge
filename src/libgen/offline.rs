@@ -309,15 +309,18 @@ async fn load_tsv_staging_swap(
     interrupt_after_staged_tables: Option<usize>,
 ) -> anyhow::Result<()> {
     let schema_live = &manifest.schema;
-    // Phase 1: avoid schema proliferation. Stage tables inside the live schema using a run-scoped
-    // suffix so resumability can be tracked and cleaned up deterministically.
+    let schema_staging = &config.postgres.schema_staging;
+
+    // Phase 1: Use dedicated staging schema to avoid cluttering live schemas.
+    db.ensure_schema(schema_live).await?;
+    db.ensure_schema(schema_staging).await?;
+
     let staging_suffix = config
         .libgen
         .offline
         .load
         .staging_table_suffix_template
         .replace("{import_run_id}", &import_run_id.to_string());
-    db.ensure_schema(schema_live).await?;
 
     let mut ticker = ProgressTicker::new(ProgressConfig {
         log_interval: Duration::from_secs(config.progress.log_interval_seconds),
@@ -325,7 +328,16 @@ async fn load_tsv_staging_swap(
 
     let mut staged_tables: usize = 0;
     for (i, def) in manifest.tables.iter().enumerate() {
-        let pg_table = format!("{}{}{}", manifest.overall_prefix, manifest.kind_prefix, def.name);
+        let kind = match manifest.kind.as_str() {
+            "fiction" => LibgenDumpKind::Fiction,
+            _ => LibgenDumpKind::Compact,
+        };
+        let pg_table = crate::libgen::mysql_dump::compute_pg_table_name(
+            &manifest.overall_prefix,
+            &manifest.kind_prefix,
+            kind,
+            &def.name,
+        );
         let staging_table = format!("{pg_table}{staging_suffix}");
         let cols: Vec<String> = def.columns.iter().map(|c| c.name.clone()).collect();
         let tsv_path = table_file_path(in_dir, &def.name);
@@ -340,8 +352,8 @@ async fn load_tsv_staging_swap(
 
         // Stage (create + load + index) unless already staged/swapped.
         if stage.as_deref() != Some("staged") && stage.as_deref() != Some("swapped") {
-            info!(table = %pg_table, staging_table = %staging_table, schema = %schema_live, "staging_table");
-            db.create_table_from_def(schema_live, &staging_table, def, false, config.libgen.typing.mode)
+            info!(table = %pg_table, staging_table = %staging_table, schema = %schema_staging, "staging_table");
+            db.create_table_from_def(schema_staging, &staging_table, def, false, config.libgen.typing.mode)
                 .await
                 .with_context(|| format!("failed creating staging table `{}`", pg_table))?;
 
@@ -351,16 +363,16 @@ async fn load_tsv_staging_swap(
             });
 
             db.copy_in_tsv_file(
-            schema_live,
-            &staging_table,
-            &cols,
-            &tsv_path,
-            config.execution.copy.file_send_chunk_bytes,
-            config.libgen.dump.sanitize_nul_bytes,
-            config.libgen.dump.nul_replacement.as_bytes(),
-        )
-        .await
-        .with_context(|| format!("failed staging COPY for `{}`", pg_table))?;
+                schema_staging,
+                &staging_table,
+                &cols,
+                &tsv_path,
+                config.execution.copy.file_send_chunk_bytes,
+                config.libgen.dump.sanitize_nul_bytes,
+                config.libgen.dump.nul_replacement.as_bytes(),
+            )
+            .await
+            .with_context(|| format!("failed staging COPY for `{}`", pg_table))?;
 
             if config.postgres.indexing.create_after_load {
                 let main_fields = if manifest.kind == "fiction" {
@@ -371,7 +383,7 @@ async fn load_tsv_staging_swap(
                 for field in main_fields {
                     if def.columns.iter().any(|c| c.name == *field) {
                         db.ensure_btree_index(
-                            schema_live,
+                            schema_staging,
                             &staging_table,
                             field,
                             config.postgres.indexing.concurrent,
@@ -384,7 +396,7 @@ async fn load_tsv_staging_swap(
             db.upsert_offline_swap_progress(
                 import_run_id,
                 schema_live,
-                schema_live,
+                schema_staging,
                 &pg_table,
                 "staged",
             )
@@ -407,6 +419,7 @@ async fn load_tsv_staging_swap(
             info!(table = %pg_table, "swapping_staged_table_into_live_schema");
             db.swap_table_from_staging_table(
                 schema_live,
+                schema_staging,
                 &pg_table,
                 &staging_table,
                 config.libgen.offline.load.keep_old_tables,
@@ -418,7 +431,7 @@ async fn load_tsv_staging_swap(
             db.upsert_offline_swap_progress(
                 import_run_id,
                 schema_live,
-                schema_live,
+                schema_staging,
                 &pg_table,
                 "swapped",
             )
@@ -433,7 +446,16 @@ async fn load_tsv_staging_swap(
 
     if config.libgen.offline.load.drop_old_tables_on_success && config.libgen.offline.load.keep_old_tables {
         for def in &manifest.tables {
-            let pg_table = format!("{}{}{}", manifest.overall_prefix, manifest.kind_prefix, def.name);
+            let kind = match manifest.kind.as_str() {
+                "fiction" => LibgenDumpKind::Fiction,
+                _ => LibgenDumpKind::Compact,
+            };
+            let pg_table = crate::libgen::mysql_dump::compute_pg_table_name(
+                &manifest.overall_prefix,
+                &manifest.kind_prefix,
+                kind,
+                &def.name,
+            );
             let old_name = format!("{pg_table}__old_{import_run_id}");
             db.drop_table_if_exists(schema_live, &old_name).await?;
         }
@@ -441,9 +463,18 @@ async fn load_tsv_staging_swap(
 
     if config.libgen.offline.load.drop_staging_tables_on_success {
         for def in &manifest.tables {
-            let pg_table = format!("{}{}{}", manifest.overall_prefix, manifest.kind_prefix, def.name);
+            let kind = match manifest.kind.as_str() {
+                "fiction" => LibgenDumpKind::Fiction,
+                _ => LibgenDumpKind::Compact,
+            };
+            let pg_table = crate::libgen::mysql_dump::compute_pg_table_name(
+                &manifest.overall_prefix,
+                &manifest.kind_prefix,
+                kind,
+                &def.name,
+            );
             let staging_table = format!("{pg_table}{staging_suffix}");
-            db.drop_table_if_exists(schema_live, &staging_table).await?;
+            db.drop_table_if_exists(schema_staging, &staging_table).await?;
         }
     }
 

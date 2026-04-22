@@ -23,6 +23,7 @@ fn pg_cast_sql(ty: PgTargetType) -> &'static str {
         PgTargetType::Date => "date",
         PgTargetType::Jsonb => "jsonb",
         PgTargetType::TextArray => "text[]",
+        PgTargetType::Int8Array => "bigint[]",
     }
 }
 
@@ -213,18 +214,20 @@ order by table_name
         Ok(recs)
     }
 
-    #[instrument(skip_all, fields(schema = schema, table = table, staging_table = staging_table))]
+    #[instrument(skip_all, fields(schema_live = schema_live, schema_staging = schema_staging, table = table, staging_table = staging_table))]
     pub async fn swap_table_from_staging_table(
         &self,
-        schema: &str,
+        schema_live: &str,
+        schema_staging: &str,
         table: &str,
         staging_table: &str,
         keep_old: bool,
         old_suffix: &str,
     ) -> anyhow::Result<()> {
-        let schema_q = quote_ident(schema);
+        let live_q = quote_ident(schema_live);
+        let staging_q = quote_ident(schema_staging);
         let table_q = quote_ident(table);
-        let staging_q = quote_ident(staging_table);
+        let staging_table_q = quote_ident(staging_table);
         let old_name = format!("{table}__old_{old_suffix}");
         let old_q = quote_ident(&old_name);
 
@@ -237,7 +240,7 @@ from information_schema.tables
 where table_schema = $1 and table_type = 'BASE TABLE' and table_name = $2
 "#,
             )
-            .bind(schema)
+            .bind(schema_live)
             .bind(table)
             .fetch_optional(&mut *tx)
             .await?;
@@ -246,16 +249,26 @@ where table_schema = $1 and table_type = 'BASE TABLE' and table_name = $2
 
         if live_exists {
             if keep_old {
-                let sql = format!("alter table {schema_q}.{table_q} rename to {old_q}");
+                let sql = format!("alter table {live_q}.{table_q} rename to {old_q}");
                 sqlx::query(&sql).execute(&mut *tx).await?;
             } else {
-                let sql = format!("drop table {schema_q}.{table_q}");
+                let sql = format!("drop table {live_q}.{table_q}");
                 sqlx::query(&sql).execute(&mut *tx).await?;
             }
         }
 
-        let sql = format!("alter table {schema_q}.{staging_q} rename to {table_q}");
-        sqlx::query(&sql).execute(&mut *tx).await?;
+        // If across schemas, we must use SET SCHEMA
+        if schema_live != schema_staging {
+            // First move it to the live schema with its staging name
+            let sql = format!("alter table {staging_q}.{staging_table_q} set schema {live_q}");
+            sqlx::query(&sql).execute(&mut *tx).await?;
+            // Then rename it to the live name
+            let sql = format!("alter table {live_q}.{staging_table_q} rename to {table_q}");
+            sqlx::query(&sql).execute(&mut *tx).await?;
+        } else {
+            let sql = format!("alter table {live_q}.{staging_table_q} rename to {table_q}");
+            sqlx::query(&sql).execute(&mut *tx).await?;
+        }
         tx.commit().await?;
 
         Ok(())
@@ -1393,6 +1406,7 @@ pub enum PgTargetType {
     Date,
     Jsonb,
     TextArray,
+    Int8Array,
 }
 
 pub(crate) fn mysql_type_to_postgres(mysql: &str) -> (PgTargetType, &'static str) {

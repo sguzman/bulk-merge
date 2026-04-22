@@ -23,6 +23,9 @@ database = "data"
 # These schemas are created by `bulk-merge init-db`.
 schema_meta = "bm_meta"
 schema_libgen = "src_libgen"
+schema_openlibrary = "src_openlibrary"
+schema_staging = "bm_staging"
+
 # Optional prefix applied to provisioned tables (in addition to per-kind prefixes).
 # table_prefix = "lg_"
 

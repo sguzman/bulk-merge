@@ -9,12 +9,12 @@ sanitize_nul_bytes = true
 nul_replacement = "[NUL]"
 
 [tables]
-fiction_prefix = "fiction_"
-compact_prefix = "compact_"
+fiction_prefix = ""
+compact_prefix = ""
 
 [init]
-provision_tables = false
-dumps = { fiction = "", compact = "" }
+provision_tables = true
+dumps = { fiction = "/drive/books/metadata/libgen/torrent/fiction.sql", compact = "/drive/books/metadata/libgen/torrent/libgen_compact.sql" }
 
 [offline]
 layout = "kind_subdir"

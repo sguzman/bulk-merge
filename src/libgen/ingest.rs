@@ -34,7 +34,12 @@ pub struct IngestPlan {
 
 impl IngestPlan {
     pub fn pg_table_for_mysql(&self, mysql_table: &str) -> String {
-        format!("{}{}{}", self.overall_prefix, self.kind_prefix, mysql_table)
+        crate::libgen::mysql_dump::compute_pg_table_name(
+            &self.overall_prefix,
+            &self.kind_prefix,
+            self.kind,
+            mysql_table,
+        )
     }
 }
 

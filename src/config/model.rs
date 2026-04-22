@@ -352,6 +352,8 @@ pub struct PostgresConfig {
     pub schema_libgen: String,
     #[serde(default = "default_schema_openlibrary")]
     pub schema_openlibrary: String,
+    #[serde(default = "default_schema_staging")]
+    pub schema_staging: String,
     #[serde(default)]
     pub table_prefix: Option<String>,
     #[serde(default)]
@@ -406,6 +408,10 @@ fn default_schema_libgen() -> String {
 
 fn default_schema_openlibrary() -> String {
     "src_openlibrary".to_string()
+}
+
+fn default_schema_staging() -> String {
+    "bm_staging".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -1083,6 +1089,15 @@ impl Default for LibgenRawConfig {
 pub enum LibgenDumpKind {
     Fiction,
     Compact,
+}
+
+impl std::fmt::Display for LibgenDumpKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fiction => write!(f, "fiction"),
+            Self::Compact => write!(f, "compact"),
+        }
+    }
 }
 
 fn default_true() -> bool {

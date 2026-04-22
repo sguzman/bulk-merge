@@ -661,6 +661,20 @@ pub fn table_prefix_for_kind(
     }
 }
 
+pub fn compute_pg_table_name(
+    overall_prefix: &str,
+    kind_prefix: &str,
+    kind: LibgenDumpKind,
+    mysql_table: &str,
+) -> String {
+    let kind_str = kind.to_string().to_lowercase();
+    if mysql_table == kind_str || mysql_table.starts_with(&format!("{}_", kind_str)) {
+        format!("{}{}{}", overall_prefix, kind_prefix, mysql_table)
+    } else {
+        format!("{}{}{}_{}", overall_prefix, kind_prefix, kind_str, mysql_table)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

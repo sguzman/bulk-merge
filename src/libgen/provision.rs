@@ -33,7 +33,12 @@ pub async fn provision_tables_from_dump(
 
     info!(tables = defs.len(), "provisioning postgres tables from mysql schema");
     for def in &defs {
-        let pg_table = format!("{overall_prefix}{prefix}{}", def.name);
+        let pg_table = crate::libgen::mysql_dump::compute_pg_table_name(
+            &overall_prefix,
+            &prefix,
+            kind,
+            &def.name,
+        );
         db.create_table_from_def(
             &config.postgres.schema_libgen,
             &pg_table,
