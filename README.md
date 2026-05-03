@@ -1,36 +1,57 @@
 # bulk-merge
 
-`bulk-merge` is a Rust CLI that ingests large bibliographic metadata dumps into
-PostgreSQL as usable, queryable tables.
+`bulk-merge` is a Rust CLI for ingesting large bibliographic metadata dumps into PostgreSQL as usable queryable tables.
 
-## Phase 1 scope (current)
+## Intent
 
-- LibGen-only ingestion
-- Dedicated tables per dump kind (`fiction` vs `compact`)
-- Resumable imports and incremental updates tracked in `bm_meta`
-- Ingest speed first: bulk load via `COPY`, create indexes after load
-- 1-to-1 field mapping from the MySQL dump to PostgreSQL columns (no semantic normalization yet)
+Move bulk metadata loading out of ad hoc import scripts into a reproducible, observable ingestion tool with migrations, progress reporting, and test coverage.
 
-## Non-goals (Phase 1)
+## Ambition
 
-- Cross-source merging / identity resolution
-- Fuzzy matching / deduplication graphs
-- Universal canonical “work/author” schema
+Given the docs, migrations, and test scaffolding, the project appears intended to become a dependable ingestion layer for very large reference datasets rather than a one-shot ETL throwaway.
 
-## Quick start
+## Current Status
 
-1) Ensure Postgres is running (see `tmp/docker-compose.yaml`).
+The repository already has a CLI entrypoint, migrations, docs, tests, and progress/output modules. The existing README also frames the work as an intentionally scoped early phase.
 
-2) Initialize schemas and bookkeeping tables:
+## Core Capabilities Or Focus Areas
+
+- CLI-driven bulk ingest workflow.
+- PostgreSQL migration support.
+- Progress and output/reporting helpers.
+- Test coverage around the import pipeline.
+- Configurable runtime behavior through project config.
+
+## Project Layout
+
+- `config/`: checked-in runtime configuration and configuration examples.
+- `docs/`: project documentation, reference material, and roadmap notes.
+- `migrations/`: database schema migrations.
+- `scratch/`: working notes or experimental assets that support ongoing development.
+- `src/`: Rust source for the main crate or application entrypoint.
+- `tests/`: automated tests, fixtures, or parity scenarios.
+- `Cargo.toml`: crate or workspace manifest and the first place to check for package structure.
+
+## Setup And Requirements
+
+- Rust toolchain.
+- PostgreSQL database reachable from the machine running the importer.
+- Input metadata dumps in the format expected by the current phase.
+
+## Build / Run / Test Commands
 
 ```bash
-cargo run -- init-db --config config/bulk-merge.toml
+cargo build
+cargo test
+cargo run -- --help
 ```
 
-## Configuration
+## Notes, Limitations, Or Known Gaps
 
-The project is configured via a single TOML control pane. See:
+- The existing docs describe the current implementation as phase-based, so not every long-term ingest feature is expected to exist yet.
+- Database schema and input-shape assumptions are central to the workflow.
 
-- `config/bulk-merge.toml`
-- `docs/config.md`
+## Next Steps Or Roadmap Hints
 
+- Broaden import coverage while keeping migration and test discipline intact.
+- Document the stable ingest contract once the current phase boundaries settle.
